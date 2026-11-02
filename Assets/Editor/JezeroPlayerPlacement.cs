@@ -5,7 +5,7 @@ using Unity.XR.CoreUtils;
 
 public static class JezeroPlayerPlacement
 {
-    [MenuItem("Mars/Placer le XR Origin sur Jezero")]
+    [MenuItem("Mars/Placer le XR Origin pres des raccords")]
     private static void Place()
     {
         if (Application.isPlaying)
@@ -20,36 +20,46 @@ public static class JezeroPlayerPlacement
 
         if (origin == null)
         {
-            Debug.LogError(
-                "Selectionne XR Origin (XR Rig) dans la Hierarchy.");
+            Debug.LogError("Selectionne XR Origin (XR Rig).");
             return;
         }
 
-        GameObject terrainObject = GameObject.Find("Jezero_Test_Terrain");
-        Terrain terrain = terrainObject != null
-            ? terrainObject.GetComponent<Terrain>()
-            : null;
+        GameObject root = GameObject.Find("Jezero_4Tiles");
 
-        if (terrain == null || terrain.terrainData == null)
+        if (root == null)
         {
-            Debug.LogError(
-                "Terrain actif nomme Jezero_Test_Terrain introuvable.");
+            Debug.LogError("Groupe actif Jezero_4Tiles introuvable.");
             return;
         }
 
-        Vector3 terrainPosition = terrain.transform.position;
-        Vector3 terrainSize = terrain.terrainData.size;
+        Terrain southwest = null;
 
-        Vector3 spawn = terrainPosition + new Vector3(
-            terrainSize.x * 0.5f,
+        foreach (Terrain terrain in root.GetComponentsInChildren<Terrain>())
+        {
+            if (terrain.name == "Jezero_SO")
+            {
+                southwest = terrain;
+                break;
+            }
+        }
+
+        if (southwest == null || southwest.terrainData == null)
+        {
+            Debug.LogError("Tuile Jezero_SO introuvable.");
+            return;
+        }
+
+        Vector3 size = southwest.terrainData.size;
+
+        Vector3 spawn = southwest.transform.position + new Vector3(
+            size.x - 5f,
             0f,
-            terrainSize.z * 0.5f);
+            size.z - 5f);
 
-        float groundY =
-            terrain.SampleHeight(spawn) + terrainPosition.y;
+        float groundY = southwest.SampleHeight(spawn)
+            + southwest.transform.position.y;
 
-        const float clearance = 0.15f;
-        spawn.y = groundY + clearance;
+        spawn.y = groundY + 0.15f;
 
         Undo.RecordObject(origin.transform, "Placer le XR Origin");
         origin.transform.position = spawn;
@@ -58,9 +68,10 @@ public static class JezeroPlayerPlacement
         EditorSceneManager.MarkSceneDirty(origin.gameObject.scene);
 
         Debug.Log(
-            $"XR Origin place : {spawn.ToString("F3")}\n" +
-            $"Sol au centre : {groundY:F3} m\n" +
-            $"Marge initiale : {clearance:F2} m",
+            $"Placement pres des raccords : {spawn.ToString("F3")}\n" +
+            $"Hauteur du sol : {groundY:F3} m\n" +
+            $"Altitude source estimee : {groundY - 2500f:F3} m\n" +
+            "Depart dans SO, a 5 m des raccords nord et est.",
             origin);
     }
 }

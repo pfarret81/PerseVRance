@@ -12,27 +12,34 @@ MonoBehaviour:
   m_Script: {fileID: 15003, guid: 0000000000000000e000000000000000, type: 0}
   m_Name: Windows
   m_EditorClassIdentifier: UnityEditor.dll::UnityEditor.Build.Profile.BuildProfile
-  m_AssetVersion: 1
+  m_AssetVersion: 2
   m_BuildTarget: 19
   m_Subtarget: 2
   m_PlatformId: 4e3c793746204150860bf175a9a41a05
   m_PlatformBuildProfile:
-    rid: 8813532418493382656
-  m_OverrideGlobalSceneList: 0
-  m_Scenes: []
+    rid: 8813532419008757956
+  m_ActivePlatformGuid: 
+  m_AdditionalPlatformBuildSettings: []
+  m_OverrideGlobalSceneList: 1
+  m_Scenes:
+  - m_enabled: 1
+    m_path: Assets/Scenes/JezeroScene.unity
+    m_guid: 56f24299fcd23d84b8d5605c7694413a
   m_HasScriptingDefines: 0
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:
     m_Settings: []
+  requiredComponents: []
   references:
     version: 2
     RefIds:
-    - rid: 8813532418493382656
+    - rid: 8813532419008757956
       type: {class: WindowsPlatformSettings, ns: UnityEditor.WindowsStandalone, asm: UnityEditor.WindowsStandalone.Extensions}
       data:
         m_Development: 1
         m_ConnectProfiler: 1
         m_BuildWithDeepProfilingSupport: 0
+        m_BuildWithCodeCoverage: 0
         m_AllowDebugging: 0
         m_WaitForManagedDebugger: 0
         m_ManagedDebuggerFixedPort: 0
