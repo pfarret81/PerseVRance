@@ -1,2 +1,5 @@
 # PerseVRance
 Submission for Nasa Space Apps Challenge 2026
+
+# References
+* Astonaut Model -> Astronaut by Poly by Google [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/dLHpzNdygsg)
