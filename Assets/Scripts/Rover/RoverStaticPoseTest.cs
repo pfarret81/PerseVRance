@@ -1,492 +1,291 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Unity.Profiling;
 
-public class RoverStaticPoseTest : MonoBehaviour
+// Historical name and serialized fields retained for scene migration.
+public partial class RoverStaticPoseTest : MonoBehaviour
 {
-    [Header("Surfaces : sol et plateforme")]
+    [Header("Surfaces communes au solveur et au diagnostic")]
     [SerializeField] private Collider[] surfaces;
-
-    [Header("Ordre : rocker gauche, rocker droit, bogie gauche, bogie droit")]
+    [Header("Rockers G/D puis bogies G/D")]
     [SerializeField] private Transform[] joints = new Transform[4];
-
-    [Header("Les six Empty E wheel, une fois chacun")]
+    [Header("Six Empty E wheel, ordre libre mais stable")]
     [SerializeField] private Transform[] wheels = new Transform[6];
-
     [SerializeField, Min(0.001f)] private float radius = 0.2627f;
+    [Header("Garde-fous du prototype, pas limites NASA")]
+    [SerializeField, Min(0.00001f)] private float contactTolerance = 0.001f;
+    [SerializeField, Range(1,100)] private int maxIterations = 60;
+    [SerializeField, Min(0.00001f)] private float derivativeStep = 0.0005f;
+    [SerializeField, Min(0f)] private float regularization = 0.00001f;
+    [SerializeField, Min(0.001f)] private float maxHeightCorrection = 0.15f;
+    [SerializeField, Range(1f,45f)] private float maxPoseAngle = 15f;
+    [SerializeField, Min(0.01f)] private float probeStartHeight = 1f;
+    [SerializeField, Min(0.1f)] private float probeLength = 10f;
 
-    [Header("Test en mode Play — rover immobile")]
-    [SerializeField] private bool solveContinuously;
+    [SerializeField, HideInInspector] private bool hasReference;
+    [SerializeField, HideInInspector] private Vector3 referencePosition;
+    [SerializeField, HideInInspector] private Quaternion referenceRotation;
+    [SerializeField, HideInInspector] private Quaternion[] referenceJoints;
+    [SerializeField, HideInInspector] private float[] axisSigns;
 
-    [Header("Avance courte — mode Play uniquement")]
-    [SerializeField] private bool advanceTest;
-    [SerializeField, Min(0.001f)] private float testSpeed = 0.05f;
-    [SerializeField, Min(0.001f)] private float testDistance = 0.10f;
+    public enum Failure { None, InvalidConfiguration, MissingSurface,
+        NumericalFailure, OutsideTestDomain, NoConvergence }
+    public Failure LastFailure { get; private set; }
+    public int LastIterations { get; private set; }
+    public float LastMaxError { get; private set; } = float.PositiveInfinity;
+    public Vector3 LastAnchor { get; private set; }
+    public Vector3 ReferencePosition => referencePosition;
+    public Vector3 ReferenceForward => Vector3.ProjectOnPlane(
+        referenceRotation * Vector3.forward, Vector3.up).normalized;
+    public bool HasRuntimeSolution => hasSolution;
+    public int WheelCount => wheels == null ? 0 : wheels.Length;
+    public int JointCount => joints == null ? 0 : joints.Length;
+    public Quaternion WheelRotation(int i) => wheels[i].localRotation;
+    public Quaternion JointRotation(int i) => joints[i].localRotation;
+    public Transform WheelCenter(int i) => wheels != null && i >= 0 && i < wheels.Length ? wheels[i] : null;
 
-    private Vector3 runtimeAnchorOffset;
-    private float travelledDistance;
+    private readonly float[] p = new float[6], errors = new float[6];
+    private readonly float[] shiftedErrors = new float[6], delta = new float[6], accepted = new float[6];
+    private readonly float[,] jacobian = new float[6,6];
+    private readonly double[,] system = new double[6,7];
+    private readonly Quaternion[] savedJoints = new Quaternion[4], initialWheels = new Quaternion[6];
+    private readonly Vector3[] savedWheelPositions = new Vector3[6];
+    private bool initialized, hasSolution;
+    private static readonly ProfilerMarker SolveMarker = new ProfilerMarker("Rover.SolvePose");
+    private void OnEnable() { InvalidateRuntime(); }
+    public void InvalidateRuntime() { initialized = false; hasSolution = false; }
 
-    private readonly Vector3[] previousWheelPositions = new Vector3[6];
-    private readonly Quaternion[] previousJointRotations = new Quaternion[4];
+    private bool ConfigurationValid(bool requireReference)
+    {
+        if (transform.parent != null || (transform.lossyScale-Vector3.one).sqrMagnitude > 0.000001f ||
+            surfaces == null || surfaces.Length == 0 || joints == null || joints.Length != 4 ||
+            wheels == null || wheels.Length != 6 || !(radius > 0f) || !(contactTolerance > 0f) ||
+            !(derivativeStep > 0f) || maxIterations < 1 || !(maxHeightCorrection > 0f) ||
+            !(maxPoseAngle > 0f) || !(probeLength > 0f) || !(probeStartHeight > 0f) ||
+            !(regularization >= 0f)) return false;
+        for (int i=0;i<4;i++)
+        {
+            if (!joints[i] || joints[i]==transform || !joints[i].IsChildOf(transform)) return false;
+            for (int j=0;j<i;j++) if (joints[i]==joints[j]) return false;
+        }
+        for (int i=0;i<6;i++)
+        {
+            if (!wheels[i] || wheels[i]==transform || !wheels[i].IsChildOf(transform)) return false;
+            for (int j=0;j<i;j++) if (wheels[i]==wheels[j]) return false;
+            for (int j=0;j<4;j++) if (wheels[i]==joints[j]) return false;
+        }
+        for (int i=0;i<surfaces.Length;i++)
+            if (surfaces[i] && (surfaces[i].transform==transform || surfaces[i].transform.IsChildOf(transform))) return false;
+        if (!requireReference) return true;
+        return hasReference && referenceJoints != null && referenceJoints.Length==4 &&
+            axisSigns != null && axisSigns.Length==4 && ReferenceForward.sqrMagnitude > 0.5f;
+    }
+    public bool InitializeRuntime()
+    {
+        if (initialized) return true;
+        if (!ConfigurationValid(true)) { LastFailure=Failure.InvalidConfiguration; return false; }
+        for (int i=0;i<6;i++) initialWheels[i]=wheels[i].localRotation;
+        Physics.SyncTransforms();
+        initialized=true; hasSolution=false; LastAnchor=referencePosition; LastFailure=Failure.None;
+        return true;
+    }
+    public bool ResetRuntimePose()
+    {
+        if (!InitializeRuntime()) return false;
+        hasSolution=false;
+        System.Array.Clear(p,0,6); ApplyPose(referencePosition,p);
+        for (int i=0;i<6;i++) wheels[i].localRotation=initialWheels[i];
+        LastAnchor=referencePosition;
+        return TrySolveAt(referencePosition,false);
+    }
 
-    private readonly float[] lastAcceptedParameters = new float[6];
-    private bool hasRuntimeSolution;
-
-    private int lastSolveIterations;
-    private float lastSolveError;
-
-    private readonly float[] parameterBuffer = new float[6];
-    private readonly float[] errorBuffer = new float[6];
-    private readonly float[] shiftedErrorBuffer = new float[6];
-    private readonly float[] deltaBuffer = new float[6];
-
-    private readonly float[,] jacobianBuffer = new float[6, 6];
-    private readonly double[,] linearSystemBuffer = new double[6, 7];
-
-    private static readonly ProfilerMarker UpdateMarker =
-        new ProfilerMarker("Rover.KinematicUpdate");
-
-    [SerializeField, HideInInspector]
-    private bool hasReference;
-
-    [SerializeField, HideInInspector]
-    private Vector3 referencePosition;
-
-    [SerializeField, HideInInspector]
-    private Quaternion referenceRotation;
-
-    [SerializeField, HideInInspector]
-    private Quaternion[] referenceJoints;
-
-    [SerializeField, HideInInspector]
-    private float[] axisSigns;
-
+    // Single contact query used by BOTH solver and gizmos. No separate surface list.
+    public bool TryProbeGround(Vector3 wheelCenter, out RaycastHit closestHit)
+    {
+        closestHit=default;
+        if (surfaces==null) return false;
+        Ray ray=new Ray(wheelCenter+Vector3.up*probeStartHeight,Vector3.down);
+        bool found=false;
+        float nearest=probeLength;
+        for (int i=0;i<surfaces.Length;i++)
+        {
+            Collider surface=surfaces[i];
+            if (!surface || !surface.enabled || !surface.gameObject.activeInHierarchy || surface.isTrigger) continue;
+            if (surface.Raycast(ray,out RaycastHit hit,nearest))
+            { nearest=hit.distance; closestHit=hit; found=true; }
+        }
+        return found;
+    }
+    public bool TrySolveAt(Vector3 anchor,bool rotateWheels)
+    {
+        using (SolveMarker.Auto()) return SolveTransaction(anchor,rotateWheels);
+    }
+    private bool SolveTransaction(Vector3 anchor,bool rotateWheels)
+    {
+        LastIterations=0; LastMaxError=float.PositiveInfinity; LastFailure=Failure.None;
+        if (!InitializeRuntime() || !Finite(anchor.x) || !Finite(anchor.y) || !Finite(anchor.z))
+        { LastFailure=Failure.InvalidConfiguration; return false; }
+        Vector3 savedPosition=transform.position;
+        Quaternion savedRotation=transform.rotation;
+        for (int i=0;i<4;i++) savedJoints[i]=joints[i].localRotation;
+        for (int i=0;i<6;i++) savedWheelPositions[i]=wheels[i].position;
+        System.Array.Clear(p,0,6);
+        if (hasSolution) { System.Array.Copy(accepted,p,6); p[0]+=LastAnchor.y-anchor.y; }
+        bool success=false;
+        for (int iteration=0;iteration<maxIterations;iteration++)
+        {
+            LastIterations=iteration+1;
+            if (!WithinDomain(p)) { LastFailure=Failure.OutsideTestDomain; break; }
+            ApplyPose(anchor,p);
+            if (!ReadErrors(errors)) break;
+            LastMaxError=MaxAbs(errors);
+            if (LastMaxError<=contactTolerance) { success=true; break; }
+            bool derivativeValid=true;
+            for (int col=0;col<6;col++)
+            {
+                float old=p[col]; p[col]=old+derivativeStep;
+                ApplyPose(anchor,p);
+                bool valid=ReadErrors(shiftedErrors);
+                p[col]=old;
+                if (!valid) { derivativeValid=false; break; }
+                for (int row=0;row<6;row++) jacobian[row,col]=(shiftedErrors[row]-errors[row])/derivativeStep;
+            }
+            ApplyPose(anchor,p);
+            if (!derivativeValid) break;
+            System.Array.Clear(system,0,system.Length);
+            for (int row=0;row<6;row++)
+            {
+                for (int col=0;col<6;col++)
+                    for (int k=0;k<6;k++) system[row,col]+=jacobian[k,row]*jacobian[k,col];
+                system[row,row]+=regularization;
+                for (int k=0;k<6;k++) system[row,6]-=jacobian[k,row]*errors[k];
+            }
+            if (!SolveLinearSystem(system,delta)) { LastFailure=Failure.NumericalFailure; break; }
+            float scale=1f;
+            for (int i=0;i<6;i++)
+            {
+                float maxStep=i==0 ? 0.02f : 0.03f;
+                if (Mathf.Abs(delta[i])>maxStep) scale=Mathf.Min(scale,maxStep/Mathf.Abs(delta[i]));
+            }
+            for (int i=0;i<6;i++) p[i]+=delta[i]*scale;
+        }
+        if (!success && LastFailure==Failure.None)
+        {
+            if (!WithinDomain(p)) LastFailure=Failure.OutsideTestDomain;
+            else
+            {
+                ApplyPose(anchor,p);
+                if (ReadErrors(errors))
+                {
+                    LastMaxError=MaxAbs(errors); success=LastMaxError<=contactTolerance;
+                    if (!success) LastFailure=Failure.NoConvergence;
+                }
+            }
+        }
+        if (!success)
+        {
+            transform.SetPositionAndRotation(savedPosition,savedRotation);
+            for (int i=0;i<4;i++) joints[i].localRotation=savedJoints[i];
+            return false;
+        }
+        ApplyPose(anchor,p);
+        if (rotateWheels) RollWheels();
+        System.Array.Copy(p,accepted,6); LastAnchor=anchor; hasSolution=true; LastFailure=Failure.None;
+        return true;
+    }
+    private void ApplyPose(Vector3 anchor,float[] values)
+    {
+        transform.SetPositionAndRotation(anchor + Vector3.up * values[0], PoseHeading *
+            Quaternion.AngleAxis(values[1]*Mathf.Rad2Deg,Vector3.right) *
+            Quaternion.AngleAxis(values[2]*Mathf.Rad2Deg,Vector3.forward));
+        SetJoint(0,values[3]); SetJoint(1,-values[3]); SetJoint(2,values[4]); SetJoint(3,values[5]);
+    }
+    private void SetJoint(int index,float angle)
+    {
+        joints[index].localRotation=referenceJoints[index]*Quaternion.AngleAxis(
+            angle*Mathf.Rad2Deg*axisSigns[index],Vector3.forward);
+    }
+    private bool WithinDomain(float[] values)
+    {
+        if (!Finite(values[0]) || Mathf.Abs(values[0])>maxHeightCorrection) return false;
+        for (int i=1;i<6;i++)
+            if (!Finite(values[i]) || Mathf.Abs(values[i])>maxPoseAngle*Mathf.Deg2Rad) return false;
+        return true;
+    }
+    private bool ReadErrors(float[] result)
+    {
+        for (int i=0;i<6;i++)
+        {
+            if (!TryProbeGround(wheels[i].position,out RaycastHit hit))
+            { LastFailure=Failure.MissingSurface; LastMaxError=float.PositiveInfinity; return false; }
+            result[i]=wheels[i].position.y-hit.point.y-radius;
+            if (!Finite(result[i])) { LastFailure=Failure.NumericalFailure; return false; }
+        }
+        return true;
+    }
+    private void RollWheels()
+    {
+        Vector3 heading=ReferenceForward;
+        Vector3 rollingAxis=Vector3.Cross(Vector3.up,heading).normalized;
+        for (int i=0;i<6;i++)
+        {
+            float distance=Vector3.Dot(wheels[i].position-savedWheelPositions[i],heading);
+            float sign=Mathf.Sign(Vector3.Dot(wheels[i].TransformDirection(Vector3.right).normalized,rollingAxis));
+            wheels[i].localRotation*=Quaternion.AngleAxis(distance/radius*Mathf.Rad2Deg*sign,Vector3.right);
+        }
+    }
+    private static bool Finite(float value)=>!float.IsNaN(value)&&!float.IsInfinity(value);
+    private static float MaxAbs(float[] values)
+    {
+        float result=0f;
+        for (int i=0;i<values.Length;i++) result=Mathf.Max(result,Mathf.Abs(values[i]));
+        return result;
+    }
     [ContextMenu("Capture Reference Pose")]
     private void CaptureReferencePose()
     {
-        if (Application.isPlaying)
+        if (Application.isPlaying || !ConfigurationValid(false))
+        { Debug.LogWarning("Capture refusee : verifier references, racine sans parent et echelle 1.",this); return; }
+        float[] signs=new float[4]; Quaternion[] rotations=new Quaternion[4];
+        for (int i=0;i<4;i++)
         {
-            Debug.LogWarning("Capturer la référence hors du mode Play.", this);
-            return;
+            float alignment=Vector3.Dot(joints[i].TransformDirection(Vector3.forward),transform.right);
+            if (Mathf.Abs(alignment)<0.5f) { Debug.LogWarning("Axe inattendu.",joints[i]); return; }
+            signs[i]=Mathf.Sign(alignment); rotations[i]=joints[i].localRotation;
         }
-
-        if (!ReferencesValid())
-            return;
-
-        float[] capturedSigns = new float[4];
-        Quaternion[] capturedRotations = new Quaternion[4];
-
-        for (int i = 0; i < joints.Length; i++)
-        {
-            capturedRotations[i] = joints[i].localRotation;
-
-            Vector3 axis = joints[i].TransformDirection(Vector3.forward);
-            float alignment = Vector3.Dot(axis, transform.right);
-
-            if (Mathf.Abs(alignment) < 0.5f)
-            {
-                Debug.LogError(
-                    "Capture annulée : axe d'articulation inattendu.",
-                    joints[i]
-                );
-                return;
-            }
-
-            capturedSigns[i] = Mathf.Sign(alignment);
-        }
-
 #if UNITY_EDITOR
-    UnityEditor.Undo.RecordObject(this, "Capture Rover Reference Pose");
+        UnityEditor.Undo.RecordObject(this,"Capture Rover Reference Pose");
 #endif
-
-        referencePosition = transform.position;
-        referenceRotation = transform.rotation;
-        referenceJoints = capturedRotations;
-        axisSigns = capturedSigns;
-        hasReference = true;
-
-        Debug.Log(
-            "Référence capturée. Elle restera fixe jusqu'à une nouvelle capture.",
-            this
-        );
+        referencePosition=transform.position; referenceRotation=transform.rotation;
+        referenceJoints=rotations; axisSigns=signs; hasReference=true; InvalidateRuntime();
+        Debug.Log("Reference capturee.",this);
     }
-
-    [ContextMenu("Report Last Solve")]
-    private void ReportLastSolve()
+    private void RecordPoseUndo()
     {
-        Debug.Log(
-            $"Dernière résolution : {lastSolveIterations} passage(s) ; " +
-            $"erreur maximale = {lastSolveError * 1000f:F3} mm ; " +
-            $"cache actif = {hasRuntimeSolution}.",
-            this
-        );
+#if UNITY_EDITOR
+        UnityEditor.Undo.RecordObjects(new Object[] { transform,joints[0],joints[1],joints[2],joints[3] },"Rover Static Pose");
+#endif
     }
-
-    private bool ReferenceAvailable()
-    {
-        if (!hasReference ||
-            referenceJoints == null || referenceJoints.Length != 4 ||
-            axisSigns == null || axisSigns.Length != 4)
-        {
-            Debug.LogWarning(
-                "Capturer d'abord la pose avec Capture Reference Pose.",
-                this
-            );
-            return false;
-        }
-
-        return true;
-    }
-
     [ContextMenu("Restore Reference Pose")]
     private void RestoreReferencePose()
     {
-        if (Application.isPlaying)
-        {
-            Debug.LogWarning("Restaurer la référence hors du mode Play.", this);
-            return;
-        }
-
-        if (!ReferencesValid() || !ReferenceAvailable())
-            return;
-
-#if UNITY_EDITOR
-    UnityEditor.Undo.RecordObjects(
-        new Object[]
-        {
-            transform, joints[0], joints[1], joints[2], joints[3]
-        },
-        "Restore Rover Reference Pose"
-    );
-#endif
-
-        ApplyPose(new float[6]);
-
-        Debug.Log("Pose de référence restaurée.", this);
+        if (Application.isPlaying || !ConfigurationValid(true)) return;
+        RecordPoseUndo(); System.Array.Clear(p,0,6); ApplyPose(referencePosition,p); InvalidateRuntime();
     }
-
     [ContextMenu("Solve Static Test Pose")]
     private void SolveStaticTestPose()
     {
-        if (Application.isPlaying)
-        {
-            Debug.LogWarning(
-                "En mode Play, utiliser Solve Continuously.",
-                this
-            );
-            return;
-        }
-
-        TrySolvePose(true);
+        if (Application.isPlaying || !ConfigurationValid(true)) return;
+        RecordPoseUndo(); InvalidateRuntime(); InitializeRuntime();
+        bool ok=TrySolveAt(referencePosition,false);
+        Debug.Log($"Resolution statique : {ok}, passages={LastIterations}, erreur={LastMaxError*1000f:F3} mm, statut={LastFailure}.",this);
+        InvalidateRuntime();
     }
-
-    private bool TrySolvePose(bool reportSuccess)
+    [ContextMenu("Report Last Solve")]
+    private void ReportLastSolve()
     {
-        if (!ReferencesValid() || !ReferenceAvailable())
-            return false;
-
-#if UNITY_EDITOR
-    if (!Application.isPlaying)
-    {
-        UnityEditor.Undo.RecordObjects(
-            new Object[]
-            {
-                transform, joints[0], joints[1], joints[2], joints[3]
-            },
-            "Solve Rover Static Pose"
-        );
+        Debug.Log($"Passages={LastIterations}, erreur={LastMaxError*1000f:F3} mm, cache={hasSolution}, statut={LastFailure}.",this);
     }
-#endif
-
-        // Paramètres :
-        // hauteur en mètres ; autres valeurs en radians.
-        // [hauteur, tangage, roulis, rocker couplé, bogie G, bogie D]
-        float[] parameters = parameterBuffer;
-        float[] errors = errorBuffer;
-
-        System.Array.Clear(parameters, 0, parameters.Length);
-        System.Array.Clear(errors, 0, errors.Length);
-
-        if (Application.isPlaying && hasRuntimeSolution)
-        {
-            System.Array.Copy(
-                lastAcceptedParameters,
-                parameters,
-                parameters.Length
-            );
-        }
-
-        bool success = false;
-        int iterations = 0;
-
-        for (int iteration = 0; iteration < 60; iteration++)
-        {
-            iterations = iteration + 1;
-            ApplyPose(parameters);
-
-            if (!ReadErrors(errors))
-                break;
-
-            if (MaxAbs(errors) <= 0.001f)
-            {
-                success = true;
-                break;
-            }
-
-            float[,] jacobian = jacobianBuffer;
-            const float epsilon = 0.0005f;
-
-            bool derivativeValid = true;
-
-            for (int column = 0; column < 6; column++)
-            {
-                parameters[column] += epsilon;
-                ApplyPose(parameters);
-
-                float[] shiftedErrors = shiftedErrorBuffer;
-                bool valid = ReadErrors(shiftedErrors);
-
-                parameters[column] -= epsilon;
-
-                if (!valid)
-                {
-                    derivativeValid = false;
-                    break;
-                }
-
-                for (int row = 0; row < 6; row++)
-                {
-                    jacobian[row, column] =
-                        (shiftedErrors[row] - errors[row]) / epsilon;
-                }
-            }
-
-            ApplyPose(parameters);
-
-            if (!derivativeValid)
-                break;
-
-            // Moindres carrés régularisés : (JᵀJ + λI) delta = -Jᵀe.
-            double[,] system = linearSystemBuffer;
-            System.Array.Clear(system, 0, system.Length);
-
-            for (int row = 0; row < 6; row++)
-            {
-                for (int column = 0; column < 6; column++)
-                {
-                    for (int sample = 0; sample < 6; sample++)
-                    {
-                        system[row, column] +=
-                            jacobian[sample, row] * jacobian[sample, column];
-                    }
-                }
-
-                system[row, row] += 0.00001;
-
-                for (int sample = 0; sample < 6; sample++)
-                    system[row, 6] -= jacobian[sample, row] * errors[sample];
-            }
-
-            float[] delta = deltaBuffer;
-
-            if (!SolveLinearSystem(system, delta))
-                break;
-
-            // Limitation du pas numérique, pas des limites mécaniques.
-            float stepScale = 1f;
-
-            for (int i = 0; i < 6; i++)
-            {
-                float maxStep = i == 0 ? 0.02f : 0.03f;
-
-                if (Mathf.Abs(delta[i]) > maxStep)
-                    stepScale = Mathf.Min(
-                        stepScale, maxStep / Mathf.Abs(delta[i])
-                    );
-            }
-
-            for (int i = 0; i < 6; i++)
-                parameters[i] += delta[i] * stepScale;
-        }
-
-        ApplyPose(parameters);
-
-        // Vérification finale, y compris après le dernier pas.
-        success = ReadErrors(errors) && MaxAbs(errors) <= 0.001f;
-
-        // Domaine de ce petit test, pas limites réelles du rover.
-        bool smallPose = Mathf.Abs(parameters[0]) <= 0.15f;
-
-        for (int i = 1; i < 6; i++)
-            smallPose &= Mathf.Abs(parameters[i]) <= 15f * Mathf.Deg2Rad;
-
-        if (!success || !smallPose)
-        {
-            hasRuntimeSolution = false;
-            lastSolveIterations = iterations;
-            lastSolveError = MaxAbs(errors);
-
-            ApplyPose(new float[6]);
-
-            Debug.LogWarning(
-                "Résolution refusée : convergence insuffisante, " +
-                "surface manquante ou sortie du domaine du petit test. " +
-                "Pose de référence restaurée.",
-                this
-            );
-            return false;
-        }
-
-        lastSolveIterations = iterations;
-        lastSolveError = MaxAbs(errors);
-
-        if (Application.isPlaying)
-        {
-            System.Array.Copy(
-                parameters,
-                lastAcceptedParameters,
-                parameters.Length
-            );
-
-            hasRuntimeSolution = true;
-        }
-
-        if (reportSuccess)
-        {
-            Debug.Log(
-                $"Pose statique résolue en {iterations} itérations. " +
-                $"Erreur verticale maximale = {MaxAbs(errors):F5} m.\n" +
-                $"Hauteur : {parameters[0]:F4} m ; " +
-                $"tangage : {parameters[1] * Mathf.Rad2Deg:F3}° ; " +
-                $"roulis : {parameters[2] * Mathf.Rad2Deg:F3}° ; " +
-                $"rocker couplé : {parameters[3] * Mathf.Rad2Deg:F3}° ; " +
-                $"bogie G : {parameters[4] * Mathf.Rad2Deg:F3}° ; " +
-                $"bogie D : {parameters[5] * Mathf.Rad2Deg:F3}°.",
-                this
-            );
-        }
-        return true;
-    }
-
-    private void ApplyPose(float[] p)
-    {
-        Vector3 anchorOffset = Application.isPlaying
-            ? runtimeAnchorOffset
-            : Vector3.zero;
-
-        transform.position =
-            referencePosition + anchorOffset + Vector3.up * p[0];
-
-        transform.rotation = referenceRotation
-            * Quaternion.AngleAxis(p[1] * Mathf.Rad2Deg, Vector3.right)
-            * Quaternion.AngleAxis(p[2] * Mathf.Rad2Deg, Vector3.forward);
-
-        SetJoint(0, p[3]);
-        SetJoint(1, -p[3]);
-        SetJoint(2, p[4]);
-        SetJoint(3, p[5]);
-    }
-
-    private void SetJoint(int index, float angleRadians)
-    {
-        joints[index].localRotation = referenceJoints[index]
-            * Quaternion.AngleAxis(
-                angleRadians * Mathf.Rad2Deg * axisSigns[index],
-                Vector3.forward
-            );
-    }
-
-    private bool ReadErrors(float[] errors)
-    {
-        for (int i = 0; i < wheels.Length; i++)
-        {
-            Ray ray = new Ray(
-                wheels[i].position + Vector3.up,
-                Vector3.down
-            );
-
-            bool found = false;
-            float nearest = 10f;
-            float groundY = 0f;
-
-            foreach (Collider surface in surfaces)
-            {
-                if (surface == null ||
-                    !surface.enabled ||
-                    !surface.gameObject.activeInHierarchy ||
-                    surface.isTrigger)
-                {
-                    continue;
-                }
-
-                if (surface.Raycast(ray, out RaycastHit hit, nearest))
-                {
-                    nearest = hit.distance;
-                    groundY = hit.point.y;
-                    found = true;
-                }
-            }
-
-            if (!found)
-                return false;
-
-            errors[i] = wheels[i].position.y - groundY - radius;
-        }
-
-        return true;
-    }
-
-    private bool ReferencesValid()
-    {
-        if (surfaces == null || surfaces.Length == 0 ||
-            joints == null || joints.Length != 4 ||
-            wheels == null || wheels.Length != 6)
-        {
-            Debug.LogError("Vérifier les tailles des trois tableaux.", this);
-            return false;
-        }
-
-        return TransformGroupValid(joints) && TransformGroupValid(wheels);
-    }
-
-    private bool TransformGroupValid(Transform[] group)
-    {
-        for (int i = 0; i < group.Length; i++)
-        {
-            if (group[i] == null ||
-                group[i] == transform ||
-                !group[i].IsChildOf(transform))
-            {
-                Debug.LogError(
-                    "Référence absente, égale à RoverRoot ou extérieure à RoverRoot.",
-                    this
-                );
-                return false;
-            }
-
-            for (int j = 0; j < i; j++)
-            {
-                if (group[i] == group[j])
-                {
-                    Debug.LogError("Référence renseignée deux fois.", this);
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static float MaxAbs(float[] values)
-    {
-        float maximum = 0f;
-
-        foreach (float value in values)
-            maximum = Mathf.Max(maximum, Mathf.Abs(value));
-
-        return maximum;
-    }
-
-    private static bool SolveLinearSystem(
+private static bool SolveLinearSystem(
     double[,] matrix, float[] result)
     {
 
@@ -541,150 +340,5 @@ public class RoverStaticPoseTest : MonoBehaviour
         }
 
         return true;
-    }
-
-    private void RotateWheelsFromDisplacement(Vector3 heading)
-    {
-        Vector3 positiveRollingAxis =
-            Vector3.Cross(Vector3.up, heading).normalized;
-
-        for (int i = 0; i < 6; i++)
-        {
-            Vector3 displacement =
-                wheels[i].position - previousWheelPositions[i];
-
-            float longitudinalDistance =
-                Vector3.Dot(displacement, heading);
-
-            Vector3 axle =
-                wheels[i].TransformDirection(Vector3.right).normalized;
-
-            float sign = Mathf.Sign(
-                Vector3.Dot(axle, positiveRollingAxis)
-            );
-
-            float angle =
-                longitudinalDistance / radius * Mathf.Rad2Deg * sign;
-
-            wheels[i].localRotation *= Quaternion.AngleAxis(
-                angle,
-                Vector3.right
-            );
-        }
-    }
-
-    private void Start()
-    {
-        hasRuntimeSolution = false;
-        runtimeAnchorOffset = Vector3.zero;
-        travelledDistance = 0f;
-
-        lastSolveIterations = 0;
-        lastSolveError = float.PositiveInfinity;
-    }
-
-    private void UpdateRover()
-    {
-        if (!solveContinuously)
-            return;
-
-        if (!ReferencesValid() || !ReferenceAvailable())
-        {
-            solveContinuously = false;
-            advanceTest = false;
-            return;
-        }
-
-        Vector3 heading = Vector3.ProjectOnPlane(
-            referenceRotation * Vector3.forward,
-            Vector3.up
-        ).normalized;
-
-        if (heading.sqrMagnitude < 0.5f)
-        {
-            solveContinuously = false;
-            advanceTest = false;
-
-            Debug.LogError("Direction horizontale de référence invalide.", this);
-            return;
-        }
-
-        float distance = 0f;
-
-        if (advanceTest)
-        {
-            float remaining = Mathf.Max(
-                0f, testDistance - travelledDistance
-            );
-
-            distance = Mathf.Min(
-                testSpeed * Time.deltaTime,
-                remaining
-            );
-        }
-
-        Vector3 previousAnchorOffset = runtimeAnchorOffset;
-        Vector3 previousRootPosition = transform.position;
-        Quaternion previousRootRotation = transform.rotation;
-
-        for (int i = 0; i < 4; i++)
-            previousJointRotations[i] = joints[i].localRotation;
-
-        for (int i = 0; i < 6; i++)
-            previousWheelPositions[i] = wheels[i].position;
-
-        runtimeAnchorOffset += heading * distance;
-
-        if (!TrySolvePose(false))
-        {
-            // Refuser ce déplacement et conserver la dernière pose affichée.
-            runtimeAnchorOffset = previousAnchorOffset;
-
-            transform.SetPositionAndRotation(
-                previousRootPosition,
-                previousRootRotation
-            );
-
-            for (int i = 0; i < 4; i++)
-                joints[i].localRotation = previousJointRotations[i];
-
-            solveContinuously = false;
-            advanceTest = false;
-
-            Debug.LogWarning(
-                "Déplacement refusé après un échec de résolution. " +
-                "Dernière pose conservée.",
-                this
-            );
-            return;
-        }
-
-        if (distance > 0f)
-        {
-            RotateWheelsFromDisplacement(heading);
-            travelledDistance += distance;
-        }
-
-        if (advanceTest &&
-            travelledDistance >= testDistance - 0.000001f)
-        {
-            advanceTest = false;
-
-            Debug.Log(
-                $"Avance courte terminée : {travelledDistance:F3} m.",
-                this
-            );
-        }
-    }
-
-    private void Update()
-    {
-        if (!solveContinuously)
-            return;
-
-        using (UpdateMarker.Auto())
-        {
-            UpdateRover();
-        }
     }
 }
