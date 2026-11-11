@@ -2415,7 +2415,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1978401720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2434,13 +2434,13 @@ MonoBehaviour:
   menuAction: {fileID: 0}
   menuBinding: <XRController>{LeftHand}/secondaryButton
   passiveElevationDegrees: 45
-  passiveDistanceMeters: 1.1
-  passiveSpreadDegrees: 32
-  followTimeSeconds: 0.25
-  menuDistanceMeters: 0.6
+  passiveDistanceMeters: 0.9
+  passiveSpreadDegrees: 40
+  followTimeSeconds: 0.16
+  menuDistanceMeters: 0.8
   menuSpreadDegrees: 30
   menuVerticalOffsetMeters: 0
-  transitionSeconds: 0.16
+  transitionSeconds: 0.32
   windowWorldScale: 0.00085
   sideWindowScale: 0.68
   compactSpanMeters: 160
