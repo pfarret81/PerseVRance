@@ -2433,14 +2433,24 @@ MonoBehaviour:
   roverMarkerSource: {fileID: 0}
   menuAction: {fileID: 0}
   menuBinding: <XRController>{LeftHand}/secondaryButton
-  distanceMeters: 1.7
-  canvasWorldScale: 0.001
-  verticalOffsetMeters: -0.08
+  passiveElevationDegrees: 45
+  passiveDistanceMeters: 1.1
+  passiveSpreadDegrees: 32
   followTimeSeconds: 0.25
+  menuDistanceMeters: 0.6
+  menuSpreadDegrees: 30
+  menuVerticalOffsetMeters: 0
+  transitionSeconds: 0.16
+  windowWorldScale: 0.00085
+  sideWindowScale: 0.68
   compactSpanMeters: 160
   minSpanMeters: 10
   maxSpanMeters: 1500
   mapRefreshHz: 10
+  panelFill: {r: 0.025, g: 0.055, b: 0.085, a: 0.9}
+  buttonFill: {r: 0.06, g: 0.12, b: 0.17, a: 0.95}
+  cornerRadiusPixels: 20
+  spatialMode: 0
 --- !u!114 &1978401721
 MonoBehaviour:
   m_ObjectHideFlags: 0
