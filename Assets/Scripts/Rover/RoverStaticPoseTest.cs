@@ -98,21 +98,38 @@ public partial class RoverStaticPoseTest : MonoBehaviour
         return TrySolveAt(referencePosition,false);
     }
 
-    // Single contact query used by BOTH solver and gizmos. No separate surface list.
     public bool TryProbeGround(Vector3 wheelCenter, out RaycastHit closestHit)
     {
-        closestHit=default;
-        if (surfaces==null) return false;
-        Ray ray=new Ray(wheelCenter+Vector3.up*probeStartHeight,Vector3.down);
-        bool found=false;
-        float nearest=probeLength;
-        for (int i=0;i<surfaces.Length;i++)
+        if (useScenePhysicsSurfaces)
+            return TryProbeScenePhysics(wheelCenter, out closestHit);
+
+        closestHit = default;
+        if (surfaces == null) return false;
+
+        Ray ray = new Ray(
+            wheelCenter + Vector3.up * probeStartHeight,
+            Vector3.down
+        );
+
+        bool found = false;
+        float nearest = probeLength;
+
+        for (int i = 0; i < surfaces.Length; i++)
         {
-            Collider surface=surfaces[i];
-            if (!surface || !surface.enabled || !surface.gameObject.activeInHierarchy || surface.isTrigger) continue;
-            if (surface.Raycast(ray,out RaycastHit hit,nearest))
-            { nearest=hit.distance; closestHit=hit; found=true; }
+            Collider surface = surfaces[i];
+
+            if (!surface || !surface.enabled ||
+                !surface.gameObject.activeInHierarchy || surface.isTrigger)
+                continue;
+
+            if (surface.Raycast(ray, out RaycastHit hit, nearest))
+            {
+                nearest = hit.distance;
+                closestHit = hit;
+                found = true;
+            }
         }
+
         return found;
     }
     public bool TrySolveAt(Vector3 anchor,bool rotateWheels)
