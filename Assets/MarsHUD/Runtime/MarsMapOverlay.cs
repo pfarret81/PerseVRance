@@ -9,12 +9,14 @@ namespace MarsHUD
         public MarsMapGraphic Map { get; set; }
         MarsMissionPanel missions;
         MarsSoilSampler soil;
+        MarsMissionPlan plan;
         bool searched;
         void FindSources()
         {
             if (searched || !Map || !Map.Host) return;
             missions=Map.Host.GetComponent<MarsMissionPanel>();
             soil=Map.Host.GetComponent<MarsSoilSampler>();
+            plan=FindAnyObjectByType<MarsMissionPlan>();   // lot 5 : fil rouge (objet de scene independant)
             searched=true;
         }
         static void Quad(VertexHelper vh, Vector2 min, Vector2 max, Color color)
@@ -60,6 +62,7 @@ namespace MarsHUD
                 Quad(vh,a,b,c);
             }
             FindSources();
+            DrawMission(vh);
             DrawSamples(vh);
             bool vehicles=DrawVehicles(vh);
             // Repli lot 1 : marqueur simple si aucune mission n'est installee.
@@ -106,6 +109,89 @@ namespace MarsHUD
             vh.AddVert(p+new Vector2(0f,size),color,Vector2.zero); vh.AddVert(p+new Vector2(size,0f),color,Vector2.zero);
             vh.AddVert(p+new Vector2(0f,-size),color,Vector2.zero); vh.AddVert(p+new Vector2(-size,0f),color,Vector2.zero);
             vh.AddTriangle(i,i+1,i+2); vh.AddTriangle(i,i+2,i+3);
+        }
+        static readonly Color Thread=new Color(1f,.32f,.26f,1f);
+        static void Disc(VertexHelper vh, Vector2 c, float radius, Color color)
+        {
+            const int n=18;
+            int start=vh.currentVertCount;
+            vh.AddVert(c,color,Vector2.zero);
+            for(int k=0;k<n;k++){ float a=k*Mathf.PI*2f/n; vh.AddVert(c+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*radius,color,Vector2.zero); }
+            for(int k=0;k<n;k++) vh.AddTriangle(start,start+1+k,start+1+(k+1)%n);
+        }
+        static void Ring(VertexHelper vh, Vector2 c, float radius, float width, Color color)
+        {
+            const int n=24;
+            int start=vh.currentVertCount;
+            float r0=Mathf.Max(0f,radius-width*.5f), r1=radius+width*.5f;
+            for(int k=0;k<n;k++)
+            {
+                Vector2 u=new Vector2(Mathf.Cos(k*Mathf.PI*2f/n),Mathf.Sin(k*Mathf.PI*2f/n));
+                vh.AddVert(c+u*r0,color,Vector2.zero); vh.AddVert(c+u*r1,color,Vector2.zero);
+            }
+            for(int k=0;k<n;k++)
+            {
+                int a=start+2*k, b=start+2*((k+1)%n);
+                vh.AddTriangle(a,a+1,b+1); vh.AddTriangle(a,b+1,b);
+            }
+        }
+        /// <summary>Lot 5 : fil rouge. Trait tirete entre etapes, etapes validees grises, etape courante cerclee
+        /// a son rayon reel, fleche au bord de la carte si l'etape courante est hors champ.</summary>
+        void DrawMission(VertexHelper vh)
+        {
+            if(!plan || !plan.isActiveAndEnabled) return;
+            var steps=plan.Steps;
+            if(steps.Count==0) return;
+            float pxPerMeter=rectTransform.rect.width/Mathf.Max(1f,Map.SpanMeters);
+            float phase=0f;
+            for(int i=1;i<steps.Count;i++)
+            {
+                if(!steps[i-1] || !steps[i]) continue;
+                Vector2 a=ToLocal(steps[i-1].transform.position), b=ToLocal(steps[i].transform.position);
+                if(!Inside(a,-60f) && !Inside(b,-60f)) continue;
+                bool done=plan.StateOf(i)==MarsMissionPlan.StepState.Done;
+                Dashed(vh,a,b,2f,new Color(Thread.r,Thread.g,Thread.b,done?.25f:.55f),ref phase);
+            }
+            for(int i=0;i<steps.Count;i++)
+            {
+                if(!steps[i]) continue;
+                Vector2 p=ToLocal(steps[i].transform.position);
+                var state=plan.StateOf(i);
+                bool arrival=plan.IsArrival(i);
+                if(state==MarsMissionPlan.StepState.Current)
+                {
+                    if(!Inside(p,12f)) { EdgeArrow(vh,p); continue; }
+                    float rr=Mathf.Max(11f,steps[i].radiusMeters*pxPerMeter);
+                    Ring(vh,p,rr,5f,new Color(0f,0f,0f,.75f));
+                    Ring(vh,p,rr,2.5f,arrival?new Color(1f,.85f,.2f):Thread);
+                    Disc(vh,p,6.5f,new Color(0f,0f,0f,.85f));
+                    Disc(vh,p,4.5f,arrival?new Color(1f,.85f,.2f):Thread);
+                    continue;
+                }
+                if(!Inside(p,10f)) continue;
+                if(state==MarsMissionPlan.StepState.Done) { Disc(vh,p,5.5f,new Color(0f,0f,0f,.7f)); Disc(vh,p,3.5f,new Color(.65f,.68f,.7f,.9f)); }
+                else
+                {
+                    Ring(vh,p,arrival?8f:6.5f,4f,new Color(0f,0f,0f,.6f));
+                    Ring(vh,p,arrival?8f:6.5f,2f,arrival?new Color(1f,.85f,.2f,.85f):new Color(Thread.r,Thread.g,Thread.b,.75f));
+                }
+            }
+        }
+        void EdgeArrow(VertexHelper vh, Vector2 target)
+        {
+            Rect r=rectTransform.rect;
+            Vector2 c=r.center, d=target-c;
+            if(d.sqrMagnitude<1f) return;
+            float sx=d.x!=0f?(r.width*.5f-16f)/Mathf.Abs(d.x):float.PositiveInfinity;
+            float sy=d.y!=0f?(r.height*.5f-16f)/Mathf.Abs(d.y):float.PositiveInfinity;
+            Vector2 tip=c+d*Mathf.Min(sx,sy);
+            Vector2 u=d.normalized, side=new Vector2(-u.y,u.x);
+            int i=vh.currentVertCount;
+            vh.AddVert(tip+u*3f,new Color(0f,0f,0f,.8f),Vector2.zero); vh.AddVert(tip-u*15f+side*10f,new Color(0f,0f,0f,.8f),Vector2.zero); vh.AddVert(tip-u*15f-side*10f,new Color(0f,0f,0f,.8f),Vector2.zero);
+            vh.AddTriangle(i,i+1,i+2);
+            i=vh.currentVertCount;
+            vh.AddVert(tip,Thread,Vector2.zero); vh.AddVert(tip-u*12f+side*7f,Thread,Vector2.zero); vh.AddVert(tip-u*12f-side*7f,Thread,Vector2.zero);
+            vh.AddTriangle(i,i+1,i+2);
         }
         void DrawSamples(VertexHelper vh)
         {

@@ -10,6 +10,8 @@ namespace MarsHUD
     /// Navigation et ordre sont separes : un ordre n'est emis que si (1) la carte TOPOGRAPHIE est agrandie
     /// dans le menu, (2) un vehicule est explicitement selectionne, (3) le geste est un toucher bref
     /// (pas un glisser). Le HUD ne deplace aucun vehicule : il transmet la destination a IMarsVehicleMission.
+    /// Lot 5 : bouton « Prelever » (Perseverance a l'arret, aucun deplacement) et diagramme en barre unique
+    /// empilee des pourcentages de chaque compose, dans la fiche SOL et en miniature dans la fenetre compacte.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(400)]
@@ -35,7 +37,13 @@ namespace MarsHUD
         RectTransform topoRoot, soilRoot;
         CanvasGroup strip, compactTopo, reportCard, compactSoil;
         Text status, message, compactStatus, report, soilSummary;
-        Button pause, resume;
+        Button pause, resume, sampleStrip, sampleCard;
+        PerseveranceMission sampleTarget;
+        RectTransform cardBar, compactBar, legendRoot;
+        Image[] cardSegments = new Image[0], compactSegments = new Image[0], legendSwatches = new Image[0];
+        Text[] legendTexts = new Text[0];
+        Text reportFooter;
+        int[] order = new int[0];
         Button[] vehicleButtons = new Button[0];
         Text[] vehicleLabels = new Text[0];
         string shownMessage = "", lastVehicleMessage;
@@ -55,7 +63,7 @@ namespace MarsHUD
             list.Clear();
             if (vehicles != null)
                 foreach (var b in vehicles)
-                    if (b is IMarsVehicleMission m) list.Add(m);
+                    if (b is IMarsVehicleMission m) { list.Add(m); if (!sampleTarget && b is PerseveranceMission pm) sampleTarget = pm; }
                     else if (b) Debug.LogWarning($"{b.name} n'implemente pas IMarsVehicleMission : ignore.", this);
         }
 
@@ -102,11 +110,14 @@ namespace MarsHUD
             for (int v = 0; v < list.Count; v++)
             {
                 int index = v;
-                vehicleButtons[v] = MakeButton(strip.transform, list[v].VehicleName, new Vector2(200f, 40f), new Vector2(-250f + v * 210f, 30f), list[v].MarkerColor, () => Select(SelectedIndex == index ? -1 : index));
+                vehicleButtons[v] = MakeButton(strip.transform, list[v].VehicleName, new Vector2(170f, 40f), new Vector2(-265f + v * 180f, 30f), list[v].MarkerColor, () => Select(SelectedIndex == index ? -1 : index));
                 vehicleLabels[v] = vehicleButtons[v].GetComponentInChildren<Text>();
+                BestFit(vehicleLabels[v], 11, 17);
             }
-            pause = MakeButton(strip.transform, "Pause", new Vector2(120f, 40f), new Vector2(170f, 30f), accent, () => Selected?.PauseMission());
-            resume = MakeButton(strip.transform, "Reprendre", new Vector2(130f, 40f), new Vector2(295f, 30f), accent, () => Selected?.ResumeMission());
+            // Lot 5 : le prelevement est une action sur place, distincte d'un ordre de deplacement.
+            sampleStrip = MakeButton(strip.transform, "Prélever", new Vector2(120f, 40f), new Vector2(70f, 30f), new Color(1f, .62f, .18f), RequestSample);
+            pause = MakeButton(strip.transform, "Pause", new Vector2(106f, 40f), new Vector2(192f, 30f), accent, () => Selected?.PauseMission());
+            resume = MakeButton(strip.transform, "Reprendre", new Vector2(106f, 40f), new Vector2(302f, 30f), accent, () => Selected?.ResumeMission());
             status = Label("Status", strip.transform, "", new Vector2(696f, 26f), new Vector2(0f, -8f), 18, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
             BestFit(status, 12, 18);
             message = Label("Message", strip.transform, "", new Vector2(696f, 40f), new Vector2(0f, -38f), 15, new Color(.78f, .86f, .9f), TextAnchor.UpperLeft);
@@ -118,13 +129,37 @@ namespace MarsHUD
 
             // --- SOL agrandi : fiche de prelevement en haut a gauche de la carte
             reportCard = Group("Soil sample report (lot 3)", soilRoot, new Vector2(340f, 318f), new Vector2(-180f, 92f), true);
-            report = Label("Report", reportCard.transform, "", new Vector2(318f, 262f), new Vector2(0f, 20f), 15, new Color(.9f, .96f, 1f), TextAnchor.UpperLeft);
-            MakeButton(reportCard.transform, "Préc.", new Vector2(100f, 34f), new Vector2(-60f, -132f), accent, () => Browse(-1));
-            MakeButton(reportCard.transform, "Suiv.", new Vector2(100f, 34f), new Vector2(60f, -132f), accent, () => Browse(1));
+            report = Label("Report header", reportCard.transform, "", new Vector2(318f, 58f), new Vector2(0f, 124f), 14, new Color(.9f, .96f, 1f), TextAnchor.UpperLeft);
+            BestFit(report, 10, 14);
+            int n = sampler && sampler.Profile ? sampler.Profile.Count : 0;
+            order = new int[n];
+            cardBar = Rect("Composition bar", reportCard.transform, new Vector2(318f, 22f), new Vector2(0f, 82f));
+            Plate(cardBar, new Color(0f, 0f, 0f, .85f), new Color(1f, 1f, 1f, .35f), 3f, 1f, false);
+            cardSegments = Segments(cardBar, n);
+            legendRoot = Rect("Composition legend", reportCard.transform, new Vector2(318f, 130f), new Vector2(0f, 4f));
+            legendSwatches = new Image[n]; legendTexts = new Text[n];
+            for (int i = 0; i < n; i++)
+            {
+                int col = i / 7, row = i % 7;
+                Vector2 at = new Vector2(-154f + col * 162f, 54f - row * 18f);
+                var sw = Rect("Swatch", legendRoot, new Vector2(10f, 10f), at + new Vector2(5f, 0f));
+                sw.gameObject.AddComponent<CanvasRenderer>();
+                legendSwatches[i] = sw.gameObject.AddComponent<Image>(); legendSwatches[i].raycastTarget = false;
+                legendTexts[i] = Label("Value", legendRoot, "", new Vector2(142f, 18f), at + new Vector2(84f, 0f), 13, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            }
+            reportFooter = Label("Report footer", reportCard.transform, "", new Vector2(318f, 40f), new Vector2(0f, -88f), 12, new Color(.78f, .86f, .9f), TextAnchor.UpperLeft);
+            BestFit(reportFooter, 9, 12);
+            MakeButton(reportCard.transform, "Préc.", new Vector2(92f, 34f), new Vector2(-112f, -132f), accent, () => Browse(-1));
+            sampleCard = MakeButton(reportCard.transform, "Prélever", new Vector2(110f, 34f), new Vector2(0f, -132f), new Color(1f, .62f, .18f), RequestSample);
+            MakeButton(reportCard.transform, "Suiv.", new Vector2(92f, 34f), new Vector2(112f, -132f), accent, () => Browse(1));
 
             // --- SOL compact : resume du dernier prelevement
             compactSoil = Group("Soil sample summary (lot 3)", soilRoot, new Vector2(404f, 46f), new Vector2(0f, 147f), false);
-            soilSummary = Label("Summary", compactSoil.transform, "", new Vector2(392f, 44f), Vector2.zero, 14, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            soilSummary = Label("Summary", compactSoil.transform, "", new Vector2(392f, 26f), new Vector2(0f, 8f), 14, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            BestFit(soilSummary, 10, 14);
+            compactBar = Rect("Mini composition bar", compactSoil.transform, new Vector2(392f, 9f), new Vector2(0f, -13f));
+            Plate(compactBar, new Color(0f, 0f, 0f, .85f), new Color(1f, 1f, 1f, .25f), 2f, .8f, false);
+            compactSegments = Segments(compactBar, n);
 
             built = true;
             Select(-1);
@@ -169,6 +204,97 @@ namespace MarsHUD
             if (message.color != c) message.color = c;
         }
 
+        void RequestSample()
+        {
+            if (!sampleTarget) { SetLocalMessage("Refusé : Perseverance n'est pas installé.", true); return; }
+            sampleTarget.RequestSample(out _);
+            SetLocalMessage(sampleTarget.LastMessage, sampleTarget.LastMessageIsRefusal);
+            RefreshTexts();
+        }
+
+        Image[] Segments(RectTransform bar, int n)
+        {
+            var result = new Image[n];
+            for (int i = 0; i < n; i++)
+            {
+                var r = Rect("Segment", bar, Vector2.zero, Vector2.zero);
+                r.anchorMin = r.anchorMax = r.pivot = new Vector2(0f, .5f);
+                r.gameObject.AddComponent<CanvasRenderer>();
+                result[i] = r.gameObject.AddComponent<Image>();
+                result[i].raycastTarget = false;
+            }
+            return result;
+        }
+
+        /// <summary>Barre unique empilee : un segment par compose, largeur proportionnelle au %, du plus abondant au moins abondant.</summary>
+        void FillBar(RectTransform bar, Image[] segments, MarsSoilSampler.Sample s, float pad)
+        {
+            var profile = sampler.Profile;
+            float w = bar.sizeDelta.x - 2f * pad, h = bar.sizeDelta.y - 2f * pad, x = pad;
+            bool any = s != null && order.Length == segments.Length;
+            for (int k = 0; k < segments.Length; k++)
+            {
+                var r = segments[k].rectTransform;
+                if (!any) { if (segments[k].enabled) segments[k].enabled = false; continue; }
+                int i = order[k];
+                float width = w * Mathf.Clamp01(s.site[i] / 100f);
+                segments[k].enabled = true;
+                segments[k].color = profile.ColorOf(i);
+                r.sizeDelta = new Vector2(Mathf.Max(0f, width - (k < segments.Length - 1 && width > 2f ? .6f : 0f)), h);
+                r.anchoredPosition = new Vector2(x, 0f);
+                x += width;
+            }
+        }
+
+        void SortBySite(MarsSoilSampler.Sample s)
+        {
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+            for (int i = 1; i < order.Length; i++)   // tri par insertion : 13 composes, uniquement a la mise a jour
+            {
+                int v = order[i], j = i - 1;
+                while (j >= 0 && s.site[order[j]] < s.site[v]) { order[j + 1] = order[j]; j--; }
+                order[j + 1] = v;
+            }
+        }
+
+        void ShowReport()
+        {
+            var samples = sampler.Samples;
+            bool has = samples.Count > 0 && reportIndex >= 0 && reportIndex < samples.Count && order.Length == sampler.Profile.Count;
+            if (cardBar.gameObject.activeSelf != has) cardBar.gameObject.SetActive(has);
+            if (legendRoot.gameObject.activeSelf != has) legendRoot.gameObject.SetActive(has);
+            var rr = report.rectTransform;
+            rr.sizeDelta = new Vector2(318f, has ? 58f : 240f);
+            rr.anchoredPosition = new Vector2(0f, has ? 124f : 32f);
+            if (!has)
+            {
+                report.text = samples.Count == 0
+                    ? "Aucun prélèvement.\n\nArrêtez Perseverance (à destination ou à l'arrêt), puis touchez « Prélever ». Chaque étape du fil rouge demande un prélèvement dans son cercle."
+                    : sampler.BuildReport(reportIndex, sb);
+                reportFooter.text = sampler.Profile ? sampler.Profile.provenance : "";
+                return;
+            }
+            var s = samples[reportIndex];
+            var profile = sampler.Profile;
+            SortBySite(s);
+            sb.Clear();
+            sb.Append("PRÉLÈVEMENT #").Append(s.id).Append(" / ").Append(samples.Count).Append(" — ").Append(s.vehicle).Append('\n');
+            if (!string.IsNullOrEmpty(s.siteLabel)) sb.Append(s.siteLabel).Append(" · ");
+            sb.Append("E ").Append(s.data.x.ToString("F0")).Append(" m  N ").Append(s.data.y.ToString("F0")).Append(" m");
+            report.text = sb.ToString();
+            FillBar(cardBar, cardSegments, s, 2f);
+            for (int k = 0; k < order.Length; k++)
+            {
+                int i = order[k];
+                legendSwatches[k].color = profile.ColorOf(i);
+                legendTexts[k].text = profile.components[i].label + "  " + s.site[i].ToString("F1") + " %" + (i == s.strongest ? "  *" : "");
+                legendTexts[k].color = i == s.strongest ? warning : new Color(.9f, .96f, 1f);
+            }
+            sb.Clear();
+            sb.Append("Indice d'écart ").Append(s.anomaly.ToString("F2")).Append(" — ").Append(sampler.Highlight(s)).Append(" (*)\n").Append(profile.provenance);
+            reportFooter.text = sb.ToString();
+        }
+
         void Browse(int delta)
         {
             if (!sampler || sampler.Samples.Count == 0) return;
@@ -191,6 +317,9 @@ namespace MarsHUD
             if (status.text != line) status.text = line;
             string compact = AllStatus("\n");
             if (compactStatus.text != compact) compactStatus.text = compact;
+            bool canSample = sampleTarget && sampleTarget.CanSample;
+            if (sampleStrip.interactable != canSample) sampleStrip.interactable = canSample;
+            if (sampleCard.interactable != canSample) sampleCard.interactable = canSample;
             pause.interactable = v != null && v.CanPause;
             resume.interactable = v != null && v.CanResume;
             if (selectedShown != SelectedIndex)
@@ -201,14 +330,15 @@ namespace MarsHUD
             }
             if (sampler)
             {
-                if (summaryVersion != sampler.Version) { summaryVersion = sampler.Version; soilSummary.text = sampler.ShortSummary(); reportIndex = sampler.Samples.Count - 1; reportVersion = -1; }
-                if (reportVersion != sampler.Version)
+                if (summaryVersion != sampler.Version)
                 {
-                    reportVersion = sampler.Version;
-                    report.text = sampler.Samples.Count == 0
-                        ? "Aucun prélèvement.\n\nSélectionnez Perseverance sur la carte TOPOGRAPHIE agrandie, puis touchez une destination : le prélèvement est automatique à l'arrivée.\n\n" + (sampler.Profile ? sampler.Profile.provenance : "")
-                        : sampler.BuildReport(reportIndex, sb);
+                    summaryVersion = sampler.Version; soilSummary.text = sampler.ShortSummary();
+                    reportIndex = sampler.Samples.Count - 1; reportVersion = -1;
+                    var last = sampler.Samples.Count > 0 && order.Length == sampler.Profile.Count ? sampler.Samples[sampler.Samples.Count - 1] : null;
+                    if (last != null) SortBySite(last);
+                    FillBar(compactBar, compactSegments, last, 1f);
                 }
+                if (reportVersion != sampler.Version) { reportVersion = sampler.Version; ShowReport(); }
             }
         }
 

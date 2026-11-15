@@ -51,6 +51,8 @@ namespace MarsHUD
         [Header("Depart")]
         public bool placeNextToPerseveranceAtStart = true;
         [Min(2f)] public float startDistanceFromPerseverance = 4f;
+        [Tooltip("Lot 5 : delai d'attente du rover. Au-dela, Ingenuity se pose pres de la position de scene du rover, meme si le rover n'est pas pret (defaut).")]
+        [Min(0f)] public float placementWaitSeconds = 3f;
         [Tooltip("Correction de la hauteur posee (m) si les pieds du modele ne touchent pas exactement le sol.")]
         public float landedHeightOffset = 0f;
         [Header("Calcul")]
@@ -72,6 +74,8 @@ namespace MarsHUD
         Vector3[] pendingRoute;
         Flight flight = Flight.Landed;
         MarsOrderState state = MarsOrderState.Unavailable, beforePlanning;
+        float hudReadySince = -1f;
+        string fallbackNote = "";
         bool placed, controlTaken, restoreManual, restoreKinematic, paused, braking, refusal, pendingCommit;
         float s, v, spinUpRemaining, pivotHeight, lastAgl = float.NaN, nextAgl;
         int segment, routeVersion;
@@ -162,9 +166,23 @@ namespace MarsHUD
         void TryPlace()
         {
             if (!hud || !hud.Ready || !body) return;
+            if (!controlTaken) TakeControl();
+            if (!controlTaken) return;
+            if (hudReadySince < 0f) hudReadySince = Time.time;
             if (!placeNextToPerseveranceAtStart) { FinishPlacement(""); return; }
-            if (!perseverance || !perseverance.follower || !perseverance.follower.IsReadyForRuntimePath) return;   // rover pas encore pose
-            if (!perseverance.TryGetPose(out Vector3 rover, out Vector3 fwd)) return;
+            bool waited = Time.time - hudReadySince >= placementWaitSeconds;
+            if (!perseverance || !perseverance.follower)
+            { if (waited) FinishPlacement("Perseverance introuvable : position de la scène conservée"); return; }
+            bool roverReady = perseverance.follower.IsReadyForRuntimePath;
+            if (!roverReady && !waited) return;   // laisse au rover le temps de se poser
+            Vector3 rover, fwd;
+            if (!roverReady || !perseverance.TryGetPose(out rover, out fwd))
+            {
+                // Lot 5 : rover pas pret (defaut, initialisation) -> pose de secours pres de RoverRoot, sans le deplacer.
+                rover = perseverance.follower.transform.position;
+                fwd = perseverance.follower.transform.forward;
+                fallbackNote = " (rover non prêt : position de scène du rover utilisée)";
+            }
             fwd.y = 0f; if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.forward; fwd.Normalize();
             Vector3 right = Vector3.Cross(Vector3.up, fwd);
             // candidats autour du rover : droite, gauche, arriere-droite, arriere-gauche, arriere, avant-droite, avant-gauche
@@ -183,11 +201,11 @@ namespace MarsHUD
                     body.position = p; body.rotation = body.transform.rotation;
                     yaw = body.rotation.eulerAngles.y;
                     Physics.SyncTransforms();
-                    FinishPlacement($"posé à {Vector3.Distance(new Vector3(rover.x, 0f, rover.z), new Vector3(p.x, 0f, p.z)):F1} m de Perseverance");
+                    FinishPlacement($"posé à {Vector3.Distance(new Vector3(rover.x, 0f, rover.z), new Vector3(p.x, 0f, p.z)):F1} m de Perseverance{fallbackNote}");
                     return;
                 }
             }
-            FinishPlacement("aucun emplacement dégagé près de Perseverance : position de la scène conservée");
+            FinishPlacement("aucun emplacement dégagé près de Perseverance : position de la scène conservée" + fallbackNote);
         }
 
         bool SpotIsClear(Vector3 pivot)
@@ -212,6 +230,17 @@ namespace MarsHUD
             return false;
         }
 
+        /// <summary>Cause precise d'indisponibilite (diagnostic affiche au lieu d'un message generique).</summary>
+        public string UnavailableReason()
+        {
+            if (!body) return "Ingenuity non configuré : champ Body vide (menu Mars HUD > Lot 5 - Configurer les engins).";
+            if (!hud || !hud.Ready) return "HUD pas encore prêt.";
+            if (!isActiveAndEnabled) return "Composant IngenuityMission désactivé.";
+            if (!controlTaken) return "Contrôle de l'appareil non pris (Rigidbody absent ou désactivé).";
+            if (!placed) return "Mise en place près de Perseverance en cours…";
+            return "Ingenuity indisponible.";
+        }
+
         void FinishPlacement(string note)
         {
             placed = true;
@@ -229,7 +258,7 @@ namespace MarsHUD
         {
             refusalReason = "";
             if (!Application.isPlaying) return Reject("ordres disponibles uniquement en mode Play.", out refusalReason);
-            if (!IsAvailable) return Reject("Ingenuity non configuré ou pas encore posé.", out refusalReason);
+            if (!IsAvailable) return Reject(UnavailableReason(), out refusalReason);
             if (!perseverance || !perseverance.TryGetPose(out Vector3 rover, out _))
                 return Reject("position de Perseverance indisponible : portée non vérifiable.", out refusalReason);
             float fromRover = Flat(rover, worldPoint);

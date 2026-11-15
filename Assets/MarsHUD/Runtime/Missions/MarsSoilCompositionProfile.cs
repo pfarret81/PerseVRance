@@ -4,10 +4,11 @@ using UnityEngine;
 namespace MarsHUD
 {
     /// <summary>
-    /// Profil de composition SIMULEE pour les prelevements du prototype. Ce ne sont pas des mesures :
-    /// les valeurs par defaut sont des exemples a remplacer par une source scientifique si besoin.
-    /// La composition depend uniquement de la position (deterministe) : un meme lieu donne toujours
-    /// le meme resultat, et chaque site presente un leger ecart local par rapport a son contexte regional.
+    /// Profil de composition SIMULEE pour les prelevements du prototype. Ce ne sont pas des mesures.
+    /// Lot 5 : l'echantillon-type par defaut reprend les teneurs moyennes du "sol basaltique moyen" (ABS)
+    /// derive des analyses APXS de Spirit, Opportunity et Curiosity (O'Connell-Cooper et al., 2017,
+    /// JGR Planets, doi:10.1002/2017JE005268). Les ecarts regionaux et locaux sont tires d'une graine
+    /// deterministe : un meme lieu donne toujours le meme resultat, chaque site differe legerement.
     /// </summary>
     [CreateAssetMenu(menuName = "Mars HUD/Soil composition profile (simulated)", fileName = "MarsSoilCompositionProfile")]
     public sealed class MarsSoilCompositionProfile : ScriptableObject
@@ -21,9 +22,11 @@ namespace MarsHUD
             [Min(0f)] public float regionalVariation = 1f;
             [Tooltip("Amplitude (points de %) de l'ecart propre a chaque site preleve : la 'decouverte'.")]
             [Min(0f)] public float localVariation = .8f;
+            [Tooltip("Couleur du segment dans le diagramme. Alpha 0 = couleur automatique.")]
+            public Color color = new Color(0f, 0f, 0f, 0f);
         }
 
-        public string provenance = "SIMULATION du prototype - profil d'exemple, aucune mesure";
+        public string provenance = "SIMULATION - échantillon-type : sol basaltique moyen martien (APXS, O'Connell-Cooper et al. 2017)";
         public SoilComponent[] components = new SoilComponent[0];
         [Min(1f)] public float regionalScaleMeters = 60f;
         [Min(.5f)] public float localCellMeters = 6f;
@@ -31,20 +34,45 @@ namespace MarsHUD
 
         public int Count => components == null ? 0 : components.Length;
 
+        static readonly Color[] Palette =
+        {
+            new Color(.86f, .80f, .62f), new Color(.80f, .32f, .20f), new Color(.55f, .70f, .85f), new Color(.45f, .75f, .45f),
+            new Color(.95f, .92f, .85f), new Color(.98f, .85f, .25f), new Color(.70f, .55f, .90f), new Color(.40f, .85f, .85f),
+            new Color(.95f, .55f, .75f), new Color(.60f, .60f, .60f), new Color(.95f, .65f, .35f), new Color(.35f, .50f, .95f),
+            new Color(.75f, .90f, .40f)
+        };
+
+        public Color ColorOf(int i)
+        {
+            if (i < 0 || i >= Count) return Color.gray;
+            Color c = components[i].color;
+            return c.a > .01f ? c : Palette[i % Palette.Length];
+        }
+
+        /// <summary>
+        /// Echantillon-type : sol basaltique moyen (ABS, % massiques). Variation regionale ~ 0,5 sigma,
+        /// variation locale ~ 0,6 sigma des ecarts-types publies. Normalise a 100 % au calcul.
+        /// </summary>
+        public static SoilComponent[] AverageBasalticSoil() => new[]
+        {
+            Make("SiO2", 45.44f, .80f, .95f, Palette[0]),  Make("FeO", 17.39f, .90f, 1.10f, Palette[1]),
+            Make("Al2O3", 9.68f, .38f, .45f, Palette[2]),  Make("MgO", 8.23f, .42f, .50f, Palette[3]),
+            Make("CaO", 6.62f, .22f, .27f, Palette[4]),    Make("SO3", 6.09f, .75f, .92f, Palette[5]),
+            Make("Na2O", 2.71f, .22f, .26f, Palette[6]),   Make("TiO2", .95f, .07f, .09f, Palette[7]),
+            Make("P2O5", .88f, .05f, .07f, Palette[8]),    Make("Cl", .69f, .07f, .08f, Palette[9]),
+            Make("K2O", .46f, .04f, .05f, Palette[10]),    Make("Cr2O3", .38f, .04f, .05f, Palette[11]),
+            Make("MnO", .35f, .02f, .02f, Palette[12])
+        };
+
         public static MarsSoilCompositionProfile CreateDefault()
         {
             var p = CreateInstance<MarsSoilCompositionProfile>();
-            p.name = "Profil de sol par defaut (exemple simule)";
-            p.components = new[]
-            {
-                Make("SiO2", 45f, 1.5f, 1.2f), Make("FeOT", 18f, 1.2f, 1.4f), Make("Al2O3", 10f, .8f, .7f),
-                Make("MgO", 8f, .8f, 1.0f), Make("CaO", 7f, .6f, .6f), Make("SO3", 6f, 1.0f, 1.3f),
-                Make("Na2O", 3f, .3f, .3f), Make("Autres", 3f, .3f, .3f)
-            };
+            p.name = "Echantillon-type : sol basaltique moyen (simule)";
+            p.components = AverageBasalticSoil();
             return p;
         }
-        static SoilComponent Make(string label, float reference, float regional, float local) =>
-            new SoilComponent { label = label, referencePercent = reference, regionalVariation = regional, localVariation = local };
+        static SoilComponent Make(string label, float reference, float regional, float local, Color color) =>
+            new SoilComponent { label = label, referencePercent = reference, regionalVariation = regional, localVariation = local, color = color };
 
         /// <summary>
         /// Remplit regional[] (contexte lent) et site[] (valeur prelevee) en % normalises a 100.

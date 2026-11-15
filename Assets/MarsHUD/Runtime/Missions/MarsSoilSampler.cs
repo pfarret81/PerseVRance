@@ -8,6 +8,7 @@ namespace MarsHUD
     /// Registre des prelevements de la session (non sauvegardes). Un prelevement est cree par le vehicule
     /// a sa position reelle d'arrivee ; il revele un petit disque de la carte du sol et devient consultable.
     /// Composition SIMULEE via MarsSoilCompositionProfile.
+    /// Lot 5 : evenement SampleCreated (fil rouge de mission) et etiquette d'etape attachee au prelevement.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class MarsSoilSampler : MonoBehaviour
@@ -31,7 +32,14 @@ namespace MarsHUD
             public float[] site;
             public int strongest;
             public float anomaly;
+            /// <summary>Etape du fil rouge contenant le point (vide si hors etape).</summary>
+            public string siteLabel = "";
         }
+
+        /// <summary>Appele apres l'enregistrement d'un prelevement (fil rouge de mission).</summary>
+        public event System.Action<Sample> SampleCreated;
+        /// <summary>Fournit le nom de l'etape contenant un point monde (renseigne par MarsMissionPlan).</summary>
+        public System.Func<Vector3, string> SiteLabelProvider;
 
         readonly List<Sample> samples = new List<Sample>(64);
         public IReadOnlyList<Sample> Samples => samples;
@@ -61,8 +69,10 @@ namespace MarsHUD
             profile.Evaluate(data, sample.regional, sample.site);
             sample.anomaly = profile.AnomalyIndex(sample.regional, sample.site, out sample.strongest);
             if (!hud.Discovery.TryRevealSoilDisc(data, revealRadiusMeters)) { LastRefusal = hud.Discovery.LastRefusal; sample = null; return false; }
+            sample.siteLabel = SiteLabelProvider != null ? SiteLabelProvider(world) ?? "" : "";
             samples.Add(sample);
             Version++;
+            SampleCreated?.Invoke(sample);
             return true;
         }
 
@@ -85,7 +95,7 @@ namespace MarsHUD
 
         public string ShortSummary()
         {
-            if (samples.Count == 0) return "Aucun prélèvement. Envoyer Perseverance sur la carte TOPOGRAPHIE.";
+            if (samples.Count == 0) return "Aucun prélèvement. Arrêter Perseverance puis toucher « Prélever ».";
             Sample s = samples[samples.Count - 1];
             return $"{samples.Count} prélèvement(s) — dernier #{s.id} : {Highlight(s)}";
         }
@@ -103,6 +113,7 @@ namespace MarsHUD
             if (index < 0 || index >= samples.Count) return "Aucun prélèvement.";
             Sample s = samples[index];
             sb.Append("PRÉLÈVEMENT #").Append(s.id).Append(" / ").Append(samples.Count).Append(" — ").Append(s.vehicle).Append('\n');
+            if (!string.IsNullOrEmpty(s.siteLabel)) sb.Append(s.siteLabel).Append(" · ");
             sb.Append("E ").Append(s.data.x.ToString("F0")).Append(" m  N ").Append(s.data.y.ToString("F0")).Append(" m\n");
             for (int i = 0; i < profile.Count; i++)
             {

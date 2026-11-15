@@ -12,40 +12,73 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80c19d06d8aa4b34b14db9cc01d6f988, type: 3}
   m_Name: MarsSoilCompositionProfile
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsSoilCompositionProfile
-  provenance: SIMULATION du prototype - profil d'exemple, aucune mesure
+  provenance: "SIMULATION - \xE9chantillon-type : sol basaltique moyen martien (APXS, O'Connell-Cooper et al. 2017)"
   components:
   - label: SiO2
-    referencePercent: 45
-    regionalVariation: 1.5
-    localVariation: 1.2
-  - label: FeOT
-    referencePercent: 18
-    regionalVariation: 1.2
-    localVariation: 1.4
+    referencePercent: 45.44
+    regionalVariation: 0.8
+    localVariation: 0.95
+    color: {r: 0.86, g: 0.8, b: 0.62, a: 1}
+  - label: FeO
+    referencePercent: 17.39
+    regionalVariation: 0.9
+    localVariation: 1.1
+    color: {r: 0.8, g: 0.32, b: 0.2, a: 1}
   - label: Al2O3
-    referencePercent: 10
-    regionalVariation: 0.8
-    localVariation: 0.7
+    referencePercent: 9.68
+    regionalVariation: 0.38
+    localVariation: 0.45
+    color: {r: 0.55, g: 0.7, b: 0.85, a: 1}
   - label: MgO
-    referencePercent: 8
-    regionalVariation: 0.8
-    localVariation: 1
+    referencePercent: 8.23
+    regionalVariation: 0.42
+    localVariation: 0.5
+    color: {r: 0.45, g: 0.75, b: 0.45, a: 1}
   - label: CaO
-    referencePercent: 7
-    regionalVariation: 0.6
-    localVariation: 0.6
+    referencePercent: 6.62
+    regionalVariation: 0.22
+    localVariation: 0.27
+    color: {r: 0.95, g: 0.92, b: 0.85, a: 1}
   - label: SO3
-    referencePercent: 6
-    regionalVariation: 1
-    localVariation: 1.3
+    referencePercent: 6.09
+    regionalVariation: 0.75
+    localVariation: 0.92
+    color: {r: 0.98, g: 0.85, b: 0.25, a: 1}
   - label: Na2O
-    referencePercent: 3
-    regionalVariation: 0.3
-    localVariation: 0.3
-  - label: Autres
-    referencePercent: 3
-    regionalVariation: 0.3
-    localVariation: 0.3
+    referencePercent: 2.71
+    regionalVariation: 0.22
+    localVariation: 0.26
+    color: {r: 0.7, g: 0.55, b: 0.9, a: 1}
+  - label: TiO2
+    referencePercent: 0.95
+    regionalVariation: 0.07
+    localVariation: 0.09
+    color: {r: 0.4, g: 0.85, b: 0.85, a: 1}
+  - label: P2O5
+    referencePercent: 0.88
+    regionalVariation: 0.05
+    localVariation: 0.07
+    color: {r: 0.95, g: 0.55, b: 0.75, a: 1}
+  - label: Cl
+    referencePercent: 0.69
+    regionalVariation: 0.07
+    localVariation: 0.08
+    color: {r: 0.6, g: 0.6, b: 0.6, a: 1}
+  - label: K2O
+    referencePercent: 0.46
+    regionalVariation: 0.04
+    localVariation: 0.05
+    color: {r: 0.95, g: 0.65, b: 0.35, a: 1}
+  - label: Cr2O3
+    referencePercent: 0.38
+    regionalVariation: 0.04
+    localVariation: 0.05
+    color: {r: 0.35, g: 0.5, b: 0.95, a: 1}
+  - label: MnO
+    referencePercent: 0.35
+    regionalVariation: 0.02
+    localVariation: 0.02
+    color: {r: 0.75, g: 0.9, b: 0.4, a: 1}
   regionalScaleMeters: 60
   localCellMeters: 6
   seed: 1729

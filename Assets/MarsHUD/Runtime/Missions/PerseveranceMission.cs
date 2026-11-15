@@ -10,6 +10,8 @@ namespace MarsHUD
     /// RoverWaypointPath runtime independant du rover, puis le confie au RoverWaypointFollower via
     /// TryAdoptPathFromCurrentPose. N'utilise ni RestartFromReference, ni reflexion, ni segment droit de secours.
     /// Le Y des points est la hauteur sondee du sol, uniquement informative (pas une consigne d'altitude).
+    /// Lot 5 : le prelevement est lance a la demande (RequestSample) quand le rover est a l'arret ;
+    /// le prelevement automatique a l'arrivee reste disponible en option.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(-50)]
@@ -29,6 +31,8 @@ namespace MarsHUD
         [Tooltip("Racines ignorees par le controle d'obstacles (XR Origin, HUD...).")]
         public Transform[] obstacleIgnoreRoots = new Transform[0];
         public RoverRoutePlannerSettings planner = new RoverRoutePlannerSettings();
+        [Tooltip("Lot 5 : false = le prelevement se lance depuis le HUD (bouton Prelever). true = automatique a l'arrivee (lot 3).")]
+        public bool autoSampleOnArrival = false;
         [Header("Test sans casque (menu contextuel)")]
         public Transform editorTestTarget;
 
@@ -40,7 +44,7 @@ namespace MarsHUD
         float[] routeCumulative = new float[0];
         RoverWaypointPath displayedPath, missionPath;
         MarsOrderState state = MarsOrderState.Unavailable, stateBeforePlanning, resumeTo;
-        bool resumeFollowerOnRefusal, pausedByUser, refusal;
+        bool resumeFollowerOnRefusal, pausedByUser, refusal, arrivedNotSampled;
         float workRemaining;
         int routeIndex, routeVersion, routeCounter;
         string lastMessage = "", statusLine = "";
@@ -65,6 +69,27 @@ namespace MarsHUD
         public RoverRoutePlanner Planner => search;
         public bool CanPause => state == MarsOrderState.EnRoute || state == MarsOrderState.Working;
         public bool CanResume => state == MarsOrderState.Paused;
+        /// <summary>Prelevement possible : rover pret, a l'arret, sans ordre ni prelevement en cours.</summary>
+        public bool CanSample => IsAvailable && sampler && follower.IsReadyForRuntimePath &&
+            (state == MarsOrderState.Idle || state == MarsOrderState.Completed) &&
+            follower.State != RoverWaypointFollower.FollowState.Following && follower.State != RoverWaypointFollower.FollowState.Fault;
+
+        /// <summary>Lance un prelevement a la position reelle du rover. Ne deplace pas le rover.</summary>
+        public bool RequestSample(out string refusalReason)
+        {
+            refusalReason = "";
+            if (!Application.isPlaying) return Reject("Prélèvement disponible uniquement en mode Play.", out refusalReason);
+            if (!IsAvailable || !sampler) return Reject("Rover ou registre de prélèvements non configuré.", out refusalReason);
+            if (follower.State == RoverWaypointFollower.FollowState.Fault) return Reject("Rover en défaut (" + follower.FaultReason + ").", out refusalReason);
+            if (!follower.IsReadyForRuntimePath) return Reject("Suivi du rover non initialisé.", out refusalReason);
+            if (state == MarsOrderState.Working) return Reject("Prélèvement déjà en cours.", out refusalReason);
+            if (!CanSample) return Reject("Le rover doit être à l'arrêt, sans ordre en cours.", out refusalReason);
+            state = MarsOrderState.Working;
+            arrivedNotSampled = false;
+            workRemaining = sampler.sampleDurationSeconds;
+            SetMessage($"Prélèvement lancé — {workRemaining:F0} s.", false);
+            return true;
+        }
 
         void Awake()
         {
@@ -140,6 +165,7 @@ namespace MarsHUD
 
         void Commit()
         {
+            arrivedNotSampled = false;
             var go = new GameObject("Perseverance mission route #" + (++routeCounter));
             SceneManager.MoveGameObjectToScene(go, follower.gameObject.scene);
             var candidate = go.AddComponent<RoverWaypointPath>();
@@ -223,9 +249,17 @@ namespace MarsHUD
                     }
                     else if (fs == RoverWaypointFollower.FollowState.Arrived)
                     {
-                        state = MarsOrderState.Working;
-                        workRemaining = sampler ? sampler.sampleDurationSeconds : 0f;
-                        SetMessage("Arrivé — prélèvement en cours.", false);
+                        if (autoSampleOnArrival)
+                        {
+                            state = MarsOrderState.Working;
+                            workRemaining = sampler ? sampler.sampleDurationSeconds : 0f;
+                            SetMessage("Arrivé — prélèvement en cours.", false);
+                        }
+                        else
+                        {
+                            state = MarsOrderState.Idle; arrivedNotSampled = true;
+                            SetMessage("Arrivé à destination. Touchez « Prélever » pour analyser le sol.", false);
+                        }
                     }
                     else if (fs == RoverWaypointFollower.FollowState.Paused && !pausedByUser)
                         state = MarsOrderState.Idle;   // pause externe (inspecteur) : on n'invente pas d'etat
@@ -295,14 +329,14 @@ namespace MarsHUD
             int percent = follower && follower.PathLength > 0f ? Mathf.Clamp(Mathf.RoundToInt(100f * follower.Progress / follower.PathLength), 0, 100) : 0;
             int detail = state == MarsOrderState.Planning ? search.Expansions / 250 :
                          state == MarsOrderState.Working ? Mathf.CeilToInt(workRemaining) : percent;
-            int key = ((int)state << 24) ^ detail;
+            int key = ((int)state << 24) ^ detail ^ (arrivedNotSampled ? 1 << 30 : 0);
             if (key == statusKey) return;          // reconstruction de la chaine seulement quand l'affichage change
             statusKey = key;
             float length = follower ? follower.PathLength : 0f;
             switch (state)
             {
                 case MarsOrderState.Unavailable: statusLine = "Indisponible : rover non configuré"; break;
-                case MarsOrderState.Idle: statusLine = "À l'arrêt — prêt"; break;
+                case MarsOrderState.Idle: statusLine = arrivedNotSampled ? "Arrivé — prêt à prélever" : "À l'arrêt — prêt"; break;
                 case MarsOrderState.Planning: statusLine = $"Calcul d'itinéraire… ({search.Expansions} essais)"; break;
                 case MarsOrderState.EnRoute: statusLine = $"En route — {percent} % de {length:F0} m"; break;
                 case MarsOrderState.Paused: statusLine = resumeTo == MarsOrderState.Working ? "En pause — prélèvement suspendu" : $"En pause — {percent} %"; break;
@@ -321,6 +355,7 @@ namespace MarsHUD
             if (!editorTestTarget) { Debug.LogWarning("Assigner Editor Test Target (un objet vide pose sur le terrain).", this); return; }
             RequestDestination(editorTestTarget.position, out _);
         }
+        [ContextMenu("TEST - Prelever ici")] void TestSample() { RequestSample(out _); }
         [ContextMenu("TEST - Pause")] void TestPause() { PauseMission(); }
         [ContextMenu("TEST - Reprendre")] void TestResume() { ResumeMission(); }
         [ContextMenu("TEST - Rapport")]
