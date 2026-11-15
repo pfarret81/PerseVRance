@@ -26,13 +26,14 @@ namespace MarsHUD
         {
             InitialKnownCenter=start;
             capturedCellSize=Mathf.Max(1f,indexCellSizeMeters);
-            discs.Clear(); buckets.Clear(); LastRefusal="";
+            discs.Clear(); buckets.Clear(); soilDiscs.Clear(); LastRefusal="";
             Initialized=true; Version++;
         }
         Vector2Int Cell(Vector2 p) => new Vector2Int(Mathf.FloorToInt(p.x/capturedCellSize),Mathf.FloorToInt(p.y/capturedCellSize));
         public bool IsKnown(MarsMapTheme theme,Vector2 p)
         {
-            if(!Initialized || !Finite(p) || theme==MarsMapTheme.Soil) return false;
+            if(!Initialized || !Finite(p)) return false;
+            if(theme==MarsMapTheme.Soil) return IsSoilKnown(p);
             float r=Mathf.Max(0f,initialKnownRadiusMeters);
             if((p-InitialKnownCenter).sqrMagnitude<=r*r) return true;
             if(!buckets.TryGetValue(Cell(p),out var indices)) return false;
@@ -42,6 +43,30 @@ namespace MarsHUD
                 if((p-d.center).sqrMagnitude<=d.radius*d.radius) return true;
             }
             return false;
+        }
+        // Lot 3 : la carte du sol n'est revelee QUE par les prelevements (disques dedies, liste courte).
+        struct SoilDisc { public Vector2 center; public float radius; }
+        readonly List<SoilDisc> soilDiscs=new List<SoilDisc>();
+        [Min(1)] public int maxSoilDiscs=512;
+        public int SoilDiscCount => soilDiscs.Count;
+        bool IsSoilKnown(Vector2 p)
+        {
+            for(int i=0;i<soilDiscs.Count;i++)
+            {
+                SoilDisc d=soilDiscs[i];
+                if((p-d.center).sqrMagnitude<=d.radius*d.radius) return true;
+            }
+            return false;
+        }
+        public bool TryRevealSoilDisc(Vector2 center,float radiusMeters)
+        {
+            LastRefusal="";
+            if(!Initialized) return Refuse("Etat de decouverte non initialise.");
+            if(!Finite(center) || !Finite(radiusMeters) || radiusMeters<=0f || radiusMeters>maxFootprintRadiusMeters)
+                return Refuse("Empreinte de prelevement invalide.");
+            if(soilDiscs.Count>=maxSoilDiscs) return Refuse("Capacite de prelevements du prototype atteinte.");
+            soilDiscs.Add(new SoilDisc {center=center,radius=radiusMeters});
+            Version++; return true;
         }
         bool Refuse(string reason) { LastRefusal=reason; return false; }
         public bool TryRevealDisc(Vector2 center,float radiusMeters)

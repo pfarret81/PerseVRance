@@ -15819,6 +15819,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bfeb75d8e3b7a134cbd01762ee232871, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RoverWheelMeasure
+--- !u!1 &428231083
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 428231084}
+  m_Layer: 0
+  m_Name: Map southwest origin
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &428231084
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 428231083}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1978401723}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &429467371
 GameObject:
   m_ObjectHideFlags: 0
@@ -16430,6 +16461,11 @@ PrefabInstance:
 --- !u!4 &441087507 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1767192434, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+  m_PrefabInstance: {fileID: 441087506}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &441087508 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
   m_PrefabInstance: {fileID: 441087506}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &442301250
@@ -25055,6 +25091,7 @@ MonoBehaviour:
   maxSaturationDuration: 5
   maxSpatialStep: 0.005
   maxStepsPerFrame: 8
+  replacementStartTolerance: 0.1
 --- !u!114 &657259222
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -52215,6 +52252,89 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 4451214124773541717, guid: 8dbc463eed0de6f42a9b03262b4aec2d, type: 3}
   m_PrefabInstance: {fileID: 1202217952}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1204494271
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1204494273}
+  - component: {fileID: 1204494272}
+  m_Layer: 0
+  m_Name: Perseverance mission (lot 3)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1204494272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1204494271}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 425694c088d34a8eaf600ed939e4aa3f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.PerseveranceMission
+  follower: {fileID: 657259221}
+  hud: {fileID: 1978401720}
+  sampler: {fileID: 1978401724}
+  vehicleName: Perseverance
+  markerColor: {r: 1, g: 0.62, b: 0.18, a: 1}
+  maxDestinationDistance: 80
+  planningBudgetMilliseconds: 2.5
+  obstacleIgnoreRoots:
+  - {fileID: 441087508}
+  - {fileID: 1978401723}
+  planner:
+    primitiveLength: 1
+    checkSpacing: 0.25
+    outputSpacing: 0.4
+    curvatureSamples: 5
+    curvatureMargin: 0.75
+    cellSize: 0.5
+    headingBins: 32
+    probeCell: 0.15
+    maxTiltDegrees: 12
+    maxSurfaceSlopeDegrees: 30
+    maxWheelResidual: 0.12
+    maxWheelStep: 0.1
+    obstacleMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    bodyClearance: 0.35
+    bodyHeight: 1.4
+    footprintMargin: 0.15
+    goalTolerance: 0.6
+    finalStraightPrimitives: 1
+    searchMargin: 25
+    maxExpansions: 20000
+    maxSeconds: 20
+    heuristicWeight: 1.5
+    curvatureCost: 0.4
+    curvatureChangeCost: 0.6
+    tiltCost: 1.5
+  editorTestTarget: {fileID: 0}
+--- !u!4 &1204494273
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1204494271}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1206083189
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -81008,13 +81128,17 @@ GameObject:
   - component: {fileID: 1978401722}
   - component: {fileID: 1978401721}
   - component: {fileID: 1978401720}
+  - component: {fileID: 1978401727}
+  - component: {fileID: 1978401726}
+  - component: {fileID: 1978401724}
+  - component: {fileID: 1978401725}
   m_Layer: 0
   m_Name: MarsHUD
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &1978401720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -81028,7 +81152,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsHUDController
   head: {fileID: 441087507}
-  catalog: {fileID: 0}
+  catalog: {fileID: 11400000, guid: f831fdf98b7d74d49b92ef638883a73c, type: 2}
   roverMarkerSource: {fileID: 0}
   menuAction: {fileID: 0}
   menuBinding: <XRController>{LeftHand}/secondaryButton
@@ -81063,6 +81187,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsDiscoveryState
   initialKnownRadiusMeters: 80
+  indexCellSizeMeters: 128
+  maxAcquisitionDiscs: 4096
+  maxFootprintRadiusMeters: 1000
+  maxSoilDiscs: 512
 --- !u!114 &1978401722
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -81075,7 +81203,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9f224c2fda14da89d0ea7e6fbc577ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMapCoordinates
-  originReference: {fileID: 0}
+  originReference: {fileID: 428231084}
   northYawDegrees: 0
   worldUnitsPerMeter: 1
 --- !u!4 &1978401723
@@ -81090,9 +81218,76 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 428231084}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1978401724
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1978401719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d5b903aa1794bd98ad9e65111727ff7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsSoilSampler
+  hud: {fileID: 1978401720}
+  profile: {fileID: 11400000, guid: 5cc05c893a55bb147ba352cf3aa9f350, type: 2}
+  sampleDurationSeconds: 8
+  revealRadiusMeters: 12
+  maxSamples: 256
+--- !u!114 &1978401725
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1978401719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33fbf652ce1b4699b1014701b2d5c3da, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMissionPanel
+  hud: {fileID: 1978401720}
+  sampler: {fileID: 1978401724}
+  vehicles:
+  - {fileID: 1204494272}
+  textRefreshHz: 5
+  accent: {r: 0.3, g: 0.78, b: 0.95, a: 1}
+  buttonFill: {r: 0.06, g: 0.12, b: 0.17, a: 0.95}
+  warning: {r: 1, g: 0.72, b: 0.35, a: 1}
+--- !u!114 &1978401726
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1978401719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bff3c202aa6c41689a7984370bec03b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMapAcquisition
+  acquisitionSource: {fileID: 0}
+  automaticAcquisition: 0
+  footprintRadiusMeters: 50
+  acquisitionHz: 5
+  minSourceTravelMeters: 10
+--- !u!114 &1978401727
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1978401719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0930c323f17a411dbc5c17baabec5e15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsLayerPresentation
 --- !u!1001 &1980513822
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -86961,3 +87156,4 @@ SceneRoots:
   - {fileID: 811839097}
   - {fileID: 1770467495}
   - {fileID: 1455130274}
+  - {fileID: 1204494273}

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -5,7 +6,8 @@ using UnityEngine.UI;
 namespace MarsHUD
 {
     [RequireComponent(typeof(RectTransform), typeof(CanvasRenderer))]
-    public sealed class MarsMapGraphic : MaskableGraphic, IBeginDragHandler, IDragHandler, IEndDragHandler
+    public sealed class MarsMapGraphic : MaskableGraphic, IBeginDragHandler, IDragHandler, IEndDragHandler,
+        IPointerDownHandler, IPointerUpHandler
     {
         public MarsHUDController Host { get; set; }
         public MarsMapTheme Theme { get; set; }
@@ -13,6 +15,17 @@ namespace MarsHUD
         public Vector2 Center { get; private set; }
         public float SpanMeters { get; private set; } = 160f;
         int pointerId = int.MinValue;
+        // Lot 3 : un "toucher bref" (appui + relache quasi immobile et court) est distinct d'un glisser.
+        // Il n'est emis que si la carte est navigable (agrandie, menu ouvert) ; c'est l'abonne qui decide
+        // s'il en fait un ordre (vehicule selectionne). Un glisser ne produit jamais d'evenement Tapped.
+        public event Action<MarsMapGraphic, Vector2> Tapped;
+        [NonSerialized] public float tapMaxTravelPixels = 14f;
+        [NonSerialized] public float tapMaxSeconds = .6f;
+        int tapPointer = int.MinValue;
+        Vector2 tapStart;
+        float tapStartTime, tapTravel;
+        MarsSoilSampler soil;
+        bool soilSearched;
         Vector2 lastLocal;
         public override Texture mainTexture => Layer != null && Layer.colorTexture ? Layer.colorTexture : Texture2D.whiteTexture;
         public float HeightMeters => SpanMeters * rectTransform.rect.height / Mathf.Max(1f, rectTransform.rect.width);
@@ -60,6 +73,7 @@ namespace MarsHUD
                 else if (!known) color=new Color(.045f,.055f,.075f);
                 else if (!valid) color=new Color(.2f,.08f,.2f);
                 else if (Layer.colorTexture) color=Color.white;
+                else if (Theme==MarsMapTheme.Soil && Soil && Soil.TryGetSoilColor(data,out Color soilColor)) color=soilColor;
                 else
                 {
                     float v=Mathf.Clamp01(.5f+.23f*Mathf.Sin(data.x*.047f)+.22f*Mathf.Cos(data.y*.033f));
@@ -73,6 +87,38 @@ namespace MarsHUD
                 int i=y*(cells+1)+x;
                 vh.AddTriangle(i,i+cells+1,i+1); vh.AddTriangle(i+1,i+cells+1,i+cells+2);
             }
+        }
+        MarsSoilSampler Soil
+        {
+            get
+            {
+                if (!soilSearched && Host) { soil=Host.GetComponent<MarsSoilSampler>(); soilSearched=true; }
+                return soil;
+            }
+        }
+        bool PointOnMap(PointerEventData e, out Vector2 p)
+        {
+            // Strict : seulement si le rayon touche reellement cette carte (pas de repli ecran pour un ordre).
+            var hit=e.pointerCurrentRaycast;
+            p=default;
+            if(hit.gameObject!=gameObject) return false;
+            Vector3 local=rectTransform.InverseTransformPoint(hit.worldPosition);
+            p=new Vector2(local.x,local.y);
+            return rectTransform.rect.Contains(p);
+        }
+        public void OnPointerDown(PointerEventData e)
+        {
+            if (!Host || !Host.CanNavigate(Theme) || tapPointer!=int.MinValue || !PointOnMap(e,out tapStart)) return;
+            tapPointer=e.pointerId; tapStartTime=Time.unscaledTime; tapTravel=0f;
+        }
+        public void OnPointerUp(PointerEventData e)
+        {
+            if (e.pointerId!=tapPointer) return;
+            tapPointer=int.MinValue;
+            if (!Host || !Host.CanNavigate(Theme) || !PointOnMap(e,out var p)) return;
+            tapTravel=Mathf.Max(tapTravel,(p-tapStart).magnitude);
+            if (tapTravel>tapMaxTravelPixels || Time.unscaledTime-tapStartTime>tapMaxSeconds) return;
+            Tapped?.Invoke(this,LocalToData(p));
         }
         bool Point(PointerEventData e, out Vector2 p)
         {
@@ -91,12 +137,13 @@ namespace MarsHUD
         }
         public void OnDrag(PointerEventData e)
         {
+            if(e.pointerId==tapPointer && Point(e,out var t)) tapTravel=Mathf.Max(tapTravel,(t-tapStart).magnitude);
             if(e.pointerId!=pointerId || !Host.CanNavigate(Theme) || !Point(e,out var p)) return;
             Vector2 delta=p-lastLocal; lastLocal=p;
             Rect r=rectTransform.rect;
             Host.Pan(Theme, -new Vector2(delta.x/r.width*SpanMeters,delta.y/r.height*HeightMeters));
         }
         public void OnEndDrag(PointerEventData e) { if(e.pointerId==pointerId) pointerId=int.MinValue; }
-        protected override void OnDisable() { pointerId=int.MinValue; base.OnDisable(); }
+        protected override void OnDisable() { pointerId=int.MinValue; tapPointer=int.MinValue; base.OnDisable(); }
     }
 }
