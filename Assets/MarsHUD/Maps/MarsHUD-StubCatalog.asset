@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 49598c979b214a37b6994a1ef240efc2, type: 3}
+  m_Name: MarsHUD-StubCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMapCatalog
+  extentCenter: {x: 0, y: 0}
+  extentSize: {x: 1000, y: 1000}
+  layers:
+  - theme: 0
+    displayName: Topography (hillshade)
+    colorTexture: {fileID: 2800000, guid: d8ee4cf96df32424b8fe4367c57cfc62, type: 3}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Sans unite (test)
+    legendLow: Bas
+    legendHigh: Haut
+    timeOrDepth: 
+    provenance: Mars Trek
+    lowColor: {r: 0, g: 0, b: 0, a: 1}
+    highColor: {r: 1, g: 1, b: 1, a: 1}
+    legendMode: 0
+    approximateRegistration: 1
+    interpretation: Donnees de test
+  - theme: 1
+    displayName: Dust
+    colorTexture: {fileID: 2800000, guid: 1bd8f0dca038c5d45b9af9edb63913c8, type: 3}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Sans unite
+    legendLow: Bas (test)
+    legendHigh: Haut (test)
+    timeOrDepth: 
+    provenance: STUB - non scientifique
+    lowColor: {r: 0.12, g: 0.22, b: 0.45, a: 1}
+    highColor: {r: 0.9, g: 0.4, b: 0.15, a: 1}
+    legendMode: 0
+    approximateRegistration: 1
+    interpretation: Donnees de test
+  - theme: 1
+    displayName: Couche alternative - TEST
+    colorTexture: {fileID: 0}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Sans unite (test)
+    legendLow: Bas (test)
+    legendHigh: Haut (test)
+    timeOrDepth: 
+    provenance: STUB - non scientifique
+    lowColor: {r: 0.08, g: 0.35, b: 0.3, a: 1}
+    highColor: {r: 0.8, g: 0.8, b: 0.2, a: 1}
+    legendMode: 0
+    approximateRegistration: 1
+    interpretation: Donnees de test
+  - theme: 2
+    displayName: Sol - aucun prelevement
+    colorTexture: {fileID: 0}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Sans unite (test)
+    legendLow: Bas (test)
+    legendHigh: Haut (test)
+    timeOrDepth: 
+    provenance: STUB - non scientifique
+    lowColor: {r: 0.16, g: 0.25, b: 0.35, a: 1}
+    highColor: {r: 0.87, g: 0.64, b: 0.29, a: 1}
+    legendMode: 0
+    approximateRegistration: 1
+    interpretation: Donnees de test

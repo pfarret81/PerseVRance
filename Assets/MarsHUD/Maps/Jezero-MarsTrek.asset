@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 49598c979b214a37b6994a1ef240efc2, type: 3}
+  m_Name: Jezero-MarsTrek
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMapCatalog
+  extentCenter: {x: 1942.8379, y: 2048}
+  extentSize: {x: 3885.6758, y: 4096}
+  layers:
+  - theme: 0
+    displayName: Relief - hillshade
+    colorTexture: {fileID: 2800000, guid: d8ee4cf96df32424b8fe4367c57cfc62, type: 3}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Ombrage, pas une altitude
+    legendLow: 
+    legendHigh: 
+    timeOrDepth: 
+    provenance: NASA Mars Trek
+    lowColor: {r: 0.16, g: 0.25, b: 0.35, a: 1}
+    highColor: {r: 0.87, g: 0.64, b: 0.29, a: 1}
+    legendMode: 2
+    approximateRegistration: 1
+    interpretation: Image recadree manuellement, supposee couvrir l'emprise complete. Aucune altitude deduite du gris.
+  - theme: 1
+    displayName: Poussiere - MGS TES Global Dust
+    colorTexture: {fileID: 2800000, guid: 1bd8f0dca038c5d45b9af9edb63913c8, type: 3}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Echelle fournie 0-1 ; unite non documentee
+    legendLow: '0 : bleu'
+    legendHigh: '1 : rouge'
+    timeOrDepth: 
+    provenance: NASA Mars Trek / TES_Dust
+    lowColor: {r: 0, g: 0, b: 1, a: 1}
+    highColor: {r: 1, g: 0, b: 0, a: 1}
+    legendMode: 3
+    approximateRegistration: 1
+    interpretation: Degrade de teinte bleu-cyan-vert-jaune-orange-rouge rapporte par l'utilisateur. Echelle affichee 0-1 ; aucune unite physique, date ou valeur numerique locale deduite du JPEG.
+  - theme: 2
+    displayName: Composition du sol
+    colorTexture: {fileID: 0}
+    validMask: {fileID: 0}
+    textureNorthAtTop: 1
+    units: Aucune mesure
+    legendLow: 
+    legendHigh: 
+    timeOrDepth: 
+    provenance: Prelevements a implementer
+    lowColor: {r: 0.16, g: 0.25, b: 0.35, a: 1}
+    highColor: {r: 0.87, g: 0.64, b: 0.29, a: 1}
+    legendMode: 2
+    approximateRegistration: 0
+    interpretation: Aucune composition n'est generee dans ce lot.
