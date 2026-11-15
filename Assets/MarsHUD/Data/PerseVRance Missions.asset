@@ -14,12 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMissionCatalog
   missions:
   - id: jezero
-    title: "Jezero \u2014 Sortie extrav\xE9hiculaire"
-    site: "Crat\xE8re Jezero, bordure ouest d'Isidis Planitia"
+    title: Jezero - The origins
+    site: Jezero Crater
     latitude: 18.38
     longitudeEast: 77.58
-    description: "Vous sortez aux c\xF4t\xE9s de Perseverance dans l'ancien lac du crat\xE8re Jezero. Ingenuity cartographie le terrain et les a\xE9rosols ; Perseverance se d\xE9place et pr\xE9l\xE8ve le sol sur vos ordres depuis le HUD."
-    objectives: "\u2022 Suivre le fil rouge jusqu'\xE0 l'arriv\xE9e\n\u2022 Faire explorer la zone par Ingenuity\n\u2022 Envoyer Perseverance et analyser le sol"
+    description: "Explore the Martian terrain alongside Perseverance and uncover the mysteries surrounding the composition of the Red Planet\u2019s soil and rocks."
+    objectives: '- Carry out your first traverse on Mars
+
+      - Have Ingenuity explore the area
+
+      - Send Perseverance to analyze the ground'
     duration: "20 \xE0 30 min"
     difficulty: 0
     sceneName: JezeroMission
@@ -27,11 +31,11 @@ MonoBehaviour:
     color: {r: 1, g: 0.48, b: 0.22, a: 1}
   - id: gale
     title: "Gale \u2014 Aeolis Mons"
-    site: "Crat\xE8re Gale (site de Curiosity)"
+    site: Gale Crater (Curiosity landing site)
     latitude: -5.4
     longitudeEast: 137.8
-    description: "Mission \xE0 venir : ascension des strates s\xE9dimentaires du mont Sharp."
-    objectives: "\xC0 d\xE9finir"
+    description: Ascent of the sedimentary strata of Mount Sharp (upcoming mission).
+    objectives: Unavailable.
     duration: "\u2014"
     difficulty: 1
     sceneName: 
@@ -42,8 +46,8 @@ MonoBehaviour:
     site: "Tharsis, plus haut volcan du syst\xE8me solaire"
     latitude: 18.65
     longitudeEast: 226.2
-    description: "Mission \xE0 venir : reconnaissance des falaises de la base du volcan."
-    objectives: "\xC0 d\xE9finir"
+    description: reconnaissance of the cliffs at the base of the volcano (upcoming mission).
+    objectives: Unavailable
     duration: "\u2014"
     difficulty: 2
     sceneName: 
@@ -54,8 +58,8 @@ MonoBehaviour:
     site: "Canyon \xE9quatorial, Coprates Chasma"
     latitude: -13.9
     longitudeEast: -59.2
-    description: "Mission \xE0 venir : descente dans le plus grand canyon de Mars."
-    objectives: "\xC0 d\xE9finir"
+    description: descent into the largest canyon on Mars.
+    objectives: Unavailable
     duration: "\u2014"
     difficulty: 2
     sceneName: 
