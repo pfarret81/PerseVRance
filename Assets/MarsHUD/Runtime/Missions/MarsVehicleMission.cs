@@ -16,6 +16,9 @@ namespace MarsHUD
         Fault          // defaut du controleur existant
     }
 
+    /// <summary>Famille de vehicule : choix du style d'affichage (trajet plein / tirete, marqueur).</summary>
+    public enum MarsVehicleKind { Ground, Aerial }
+
     /// <summary>
     /// Contrat minimal entre le HUD et un vehicule. Le HUD ne deplace jamais un vehicule :
     /// il transmet une destination ; le vehicule planifie, valide puis confie le trajet a son controleur existant.
@@ -24,6 +27,9 @@ namespace MarsHUD
     {
         string VehicleName { get; }
         Color MarkerColor { get; }
+        MarsVehicleKind Kind { get; }
+        /// <summary>true : la destination doit etre dans une zone deja cartographiee (rover). false : exploration (Ingenuity).</summary>
+        bool RequiresKnownDestination { get; }
         bool IsAvailable { get; }
         MarsOrderState OrderState { get; }
         /// <summary>Ligne d'etat courte, deja formatee pour l'affichage.</summary>

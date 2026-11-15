@@ -50,6 +50,8 @@ namespace MarsHUD
 
         public string VehicleName => vehicleName;
         public Color MarkerColor => markerColor;
+        public MarsVehicleKind Kind => MarsVehicleKind.Ground;
+        public bool RequiresKnownDestination => true;
         public bool IsAvailable => follower && follower.Actuator && follower.Actuator.Solver && follower.isActiveAndEnabled;
         public MarsOrderState OrderState => state;
         public string StatusLine => statusLine;

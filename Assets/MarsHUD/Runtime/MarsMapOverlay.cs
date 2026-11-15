@@ -83,6 +83,23 @@ namespace MarsHUD
             vh.AddVert(b+n,color,Vector2.zero); vh.AddVert(b-n,color,Vector2.zero);
             vh.AddTriangle(i,i+1,i+2); vh.AddTriangle(i,i+2,i+3);
         }
+        /// <summary>Trait tirete continu d'un segment a l'autre (8 px plein, 6 px vide).</summary>
+        static void Dashed(VertexHelper vh, Vector2 a, Vector2 b, float width, Color color, ref float phase)
+        {
+            const float on=8f, period=14f;
+            Vector2 d=b-a;
+            float len=d.magnitude;
+            if(len<.01f) return;
+            Vector2 u=d/len;
+            float t=0f;
+            while(t<len)
+            {
+                float local=phase%period;
+                float span=local<on ? Mathf.Min(on-local,len-t) : Mathf.Min(period-local,len-t);
+                if(local<on) Line(vh,a+u*t,a+u*(t+span),width,color);
+                t+=span; phase+=span;
+            }
+        }
         static void Diamond(VertexHelper vh, Vector2 p, float size, Color color)
         {
             int i=vh.currentVertCount;
@@ -122,23 +139,29 @@ namespace MarsHUD
                     {
                         int stride=Mathf.Max(1,remaining/220);   // borne le nombre de segments dessines
                         Color c=new Color(m.MarkerColor.r,m.MarkerColor.g,m.MarkerColor.b,selected?.95f:.6f);
+                        bool dashed=m.Kind==MarsVehicleKind.Aerial;   // lot 4 : trajet aerien tirete, distinct du rover
+                        float width=selected?3.5f:2.5f, phase=0f;
                         Vector2 prev=ToLocal(pos);
                         for(int i=start+1;i<route.Count;i+=stride)
                         {
                             Vector2 next=ToLocal(route[i]);
-                            if(Inside(prev,-40f) || Inside(next,-40f)) Line(vh,prev,next,selected?3.5f:2.5f,c);
+                            if(Inside(prev,-40f) || Inside(next,-40f)) { if(dashed) Dashed(vh,prev,next,width,c,ref phase); else Line(vh,prev,next,width,c); }
+                            else phase=0f;
                             prev=next;
                         }
                         Vector2 last=ToLocal(route[route.Count-1]);
-                        Line(vh,prev,last,selected?3.5f:2.5f,c);
+                        if(dashed) Dashed(vh,prev,last,width,c,ref phase); else Line(vh,prev,last,width,c);
                     }
                     if(m.HasDestination)
                     {
                         Vector2 d=ToLocal(m.Destination);
                         if(Inside(d,10f))
                         {
-                            Line(vh,d+new Vector2(-9f,-9f),d+new Vector2(9f,9f),3f,Color.white);
-                            Line(vh,d+new Vector2(-9f,9f),d+new Vector2(9f,-9f),3f,Color.white);
+                            Color cross=m.Kind==MarsVehicleKind.Aerial?m.MarkerColor:Color.white;
+                            Line(vh,d+new Vector2(-10f,-10f),d+new Vector2(10f,10f),5f,new Color(0f,0f,0f,.85f));
+                            Line(vh,d+new Vector2(-10f,10f),d+new Vector2(10f,-10f),5f,new Color(0f,0f,0f,.85f));
+                            Line(vh,d+new Vector2(-9f,-9f),d+new Vector2(9f,9f),3f,cross);
+                            Line(vh,d+new Vector2(-9f,9f),d+new Vector2(9f,-9f),3f,cross);
                         }
                     }
                 }
@@ -146,6 +169,18 @@ namespace MarsHUD
                 if(!Inside(p,10f)) continue;
                 Vector2 dir=Map.Host.Coordinates.DirectionToData(fwd);
                 if(dir.sqrMagnitude<.01f) dir=Vector2.up;
+                if(m.Kind==MarsVehicleKind.Aerial)
+                {
+                    // Ingenuity : croix de rotors sur fond sombre, contour blanc si selectionne
+                    float arm=selected?11f:9f;
+                    if(selected) { Line(vh,p+new Vector2(-arm-2f,-arm-2f),p+new Vector2(arm+2f,arm+2f),7f,Color.white); Line(vh,p+new Vector2(-arm-2f,arm+2f),p+new Vector2(arm+2f,-arm-2f),7f,Color.white); }
+                    Line(vh,p+new Vector2(-arm,-arm),p+new Vector2(arm,arm),5f,new Color(0f,0f,0f,.9f));
+                    Line(vh,p+new Vector2(-arm,arm),p+new Vector2(arm,-arm),5f,new Color(0f,0f,0f,.9f));
+                    Line(vh,p+new Vector2(-arm+1f,-arm+1f),p+new Vector2(arm-1f,arm-1f),3f,m.MarkerColor);
+                    Line(vh,p+new Vector2(-arm+1f,arm-1f),p+new Vector2(arm-1f,-arm+1f),3f,m.MarkerColor);
+                    Quad(vh,p-Vector2.one*3f,p+Vector2.one*3f,m.MarkerColor);
+                    continue;
+                }
                 if(selected) { Quad(vh,p-Vector2.one*10f,p+Vector2.one*10f,Color.white); Quad(vh,p-Vector2.one*8f,p+Vector2.one*8f,new Color(0f,0f,0f,.9f)); }
                 Quad(vh,p-Vector2.one*6f,p+Vector2.one*6f,m.MarkerColor);
                 Line(vh,p,p+dir*13f,3f,m.MarkerColor);

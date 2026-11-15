@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace MarsHUD
 {
     /// <summary>
-    /// Lot 3 - Commandes de vehicule ajoutees aux fenetres existantes, sans modifier MarsHUDController.
+    /// Lots 3 et 4 - Commandes de vehicule ajoutees aux fenetres existantes, sans modifier MarsHUDController.
     /// Navigation et ordre sont separes : un ordre n'est emis que si (1) la carte TOPOGRAPHIE est agrandie
     /// dans le menu, (2) un vehicule est explicitement selectionne, (3) le geste est un toucher bref
     /// (pas un glisser). Le HUD ne deplace aucun vehicule : il transmet la destination a IMarsVehicleMission.
@@ -108,11 +108,13 @@ namespace MarsHUD
             pause = MakeButton(strip.transform, "Pause", new Vector2(120f, 40f), new Vector2(170f, 30f), accent, () => Selected?.PauseMission());
             resume = MakeButton(strip.transform, "Reprendre", new Vector2(130f, 40f), new Vector2(295f, 30f), accent, () => Selected?.ResumeMission());
             status = Label("Status", strip.transform, "", new Vector2(696f, 26f), new Vector2(0f, -8f), 18, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            BestFit(status, 12, 18);
             message = Label("Message", strip.transform, "", new Vector2(696f, 40f), new Vector2(0f, -38f), 15, new Color(.78f, .86f, .9f), TextAnchor.UpperLeft);
 
             // --- TOPOGRAPHIE compacte (viewport 404 x 240 centre en y=50 : haut a y=170)
-            compactTopo = Group("Vehicle status (lot 3)", topoRoot, new Vector2(404f, 30f), new Vector2(0f, 155f), false);
-            compactStatus = Label("Status", compactTopo.transform, "", new Vector2(392f, 28f), Vector2.zero, 15, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            compactTopo = Group("Vehicle status (lot 3)", topoRoot, new Vector2(404f, list.Count > 1 ? 44f : 30f), new Vector2(0f, list.Count > 1 ? 148f : 155f), false);
+            compactStatus = Label("Status", compactTopo.transform, "", new Vector2(392f, list.Count > 1 ? 42f : 28f), Vector2.zero, 15, new Color(.9f, .96f, 1f), TextAnchor.MiddleLeft);
+            BestFit(compactStatus, 10, 15);
 
             // --- SOL agrandi : fiche de prelevement en haut a gauche de la carte
             reportCard = Group("Soil sample report (lot 3)", soilRoot, new Vector2(340f, 318f), new Vector2(-180f, 92f), true);
@@ -144,7 +146,8 @@ namespace MarsHUD
             var vehicle = Selected;
             if (vehicle == null) { SetLocalMessage(NoSelection, false); return; }   // geste de navigation : aucun ordre
             if (!hud.Catalog.Contains(data)) { SetLocalMessage("Refusé : point hors de l'emprise des cartes.", true); return; }
-            if (!hud.Discovery.IsKnown(MarsMapTheme.Topography, data)) { SetLocalMessage("Refusé : zone non cartographiée (inconnue).", true); return; }
+            if (vehicle.RequiresKnownDestination && !hud.Discovery.IsKnown(MarsMapTheme.Topography, data))
+            { SetLocalMessage("Refusé : zone non cartographiée (inconnue). " + vehicle.VehicleName + " ne se rend que dans les zones connues ; Ingenuity peut l'explorer.", true); return; }
             Vector3 world = hud.Coordinates.DataToWorld(data);
             vehicle.RequestDestination(world, out _);
             lastVehicleMessage = null;   // le message du vehicule (accepte/refuse) remplace l'affichage
@@ -184,10 +187,10 @@ namespace MarsHUD
                 if (!string.IsNullOrEmpty(lastVehicleMessage)) { shownMessage = lastVehicleMessage; shownIsWarning = v.LastMessageIsRefusal; }
             }
             ApplyMessage();
-            var shownVehicle = v ?? (list.Count > 0 ? list[0] : null);
-            string line = shownVehicle == null ? "Aucun véhicule installé" : shownVehicle.VehicleName.ToUpperInvariant() + " : " + shownVehicle.StatusLine;
+            string line = v != null ? v.VehicleName.ToUpperInvariant() + " : " + v.StatusLine : AllStatus(" · ");
             if (status.text != line) status.text = line;
-            if (compactStatus.text != line) compactStatus.text = line;
+            string compact = AllStatus("\n");
+            if (compactStatus.text != compact) compactStatus.text = compact;
             pause.interactable = v != null && v.CanPause;
             resume.interactable = v != null && v.CanResume;
             if (selectedShown != SelectedIndex)
@@ -207,6 +210,23 @@ namespace MarsHUD
                         : sampler.BuildReport(reportIndex, sb);
                 }
             }
+        }
+
+        string AllStatus(string separator)
+        {
+            if (list.Count == 0) return "Aucun véhicule installé";
+            sb.Clear();
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (i > 0) sb.Append(separator);
+                sb.Append(list[i].VehicleName.ToUpperInvariant()).Append(" : ").Append(list[i].StatusLine);
+            }
+            return sb.ToString();
+        }
+
+        static void BestFit(Text t, int min, int max)
+        {
+            t.resizeTextForBestFit = true; t.resizeTextMinSize = min; t.resizeTextMaxSize = max;
         }
 
         // ------------------------------------------------------------------ construction UI (style du lot 1)
