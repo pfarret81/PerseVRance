@@ -3,7 +3,97 @@ guid: 1678a5dcb42552d40907659d77e71fda
 ModelImporter:
   serializedVersion: 24600
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: aluminum
+    second: {fileID: 2100000, guid: 25d7b4e9ae51ec94b928472aa1985836, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: aluminum.001
+    second: {fileID: 2100000, guid: 23d6ad20d0fb7c94a8e3f16e7e38404d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: aluminum.003
+    second: {fileID: 2100000, guid: 387b716165b63f641908d70129883eb4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: aluminum_black
+    second: {fileID: 2100000, guid: ac37e83fd99851347998974cb71ac35d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: blades
+    second: {fileID: 2100000, guid: 4faaa80aba289274cb4888bd244061d0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: bronze
+    second: {fileID: 2100000, guid: ebbeea7c97e98f9448d39530214e2c72, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: glass lens
+    second: {fileID: 2100000, guid: b7b82f0b2cf07fd43b67c16b90dd3127, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: glass_trans
+    second: {fileID: 2100000, guid: 06b6cac346a9b074b995c7bb75708652, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: gunmetal
+    second: {fileID: 2100000, guid: aa866ad8a9a70ff49860dd1d378b1708, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: gunmetal_dark
+    second: {fileID: 2100000, guid: 0c2755bb01c82d645bd1ce1760073a58, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_01_n
+    second: {fileID: 2100000, guid: 5a439cf3e2a6c214dae809647f2b58a7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_02
+    second: {fileID: 2100000, guid: cf56de5840e2eac45b703ce48c06c323, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_02_n
+    second: {fileID: 2100000, guid: f8cfd873716d7ef45b951f54265a95f7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_03
+    second: {fileID: 2100000, guid: b865ead861578054fb54396546e424c5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_03.002
+    second: {fileID: 2100000, guid: 655f4941d83f13e4488fbe5657d08c53, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: mars_2020_06_brass
+    second: {fileID: 2100000, guid: 93c3710fb6277c74090215a308d5e6de, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: paint_white_base
+    second: {fileID: 2100000, guid: ab2934889ee3ff843b2fffd6061ea9dd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: transparent
+    second: {fileID: 2100000, guid: 9d6179be9f5d7fb42ba1572264ca9e78, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
