@@ -23,8 +23,11 @@ MonoBehaviour:
   m_OverrideGlobalSceneList: 1
   m_Scenes:
   - m_enabled: 1
-    m_path: Assets/Scenes/JezeroScene.unity
-    m_guid: 56f24299fcd23d84b8d5605c7694413a
+    m_path: Assets/Scenes/PerseVRance_Menu.unity
+    m_guid: 07cc96fda038b934f9edf4729d46d234
+  - m_enabled: 1
+    m_path: Assets/Scenes/JezeroMission.unity
+    m_guid: b19a01d7139857c47b1864bf3efeb73e
   m_HasScriptingDefines: 0
   m_ScriptingDefines: []
   m_PlayerSettingsYaml:

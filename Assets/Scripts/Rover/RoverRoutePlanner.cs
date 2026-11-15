@@ -53,6 +53,52 @@ public sealed class RoverRoutePlannerSettings
     [Min(0f)] public float curvatureCost = .4f;
     [Min(0f)] public float curvatureChangeCost = .6f;
     [Min(0f)] public float tiltCost = 1.5f;
+    [Header("Lot 6 - tolerances")]
+    [Tooltip("Marge (deg) gardee sous l'angle maximal du solveur pour l'inclinaison du plan des roues.")]
+    [Range(.5f, 10f)] public float solverAngleMargin = 3f;
+    [Tooltip("Les colliders deja en contact avec le rover a la pose de depart ne bloquent pas la recherche\n" +
+             "(le rover est physiquement deja la ; evite un refus total a cause d'un caillou ou d'Ingenuity a cote).")]
+    public bool ignoreStartOverlaps = true;
+    [Tooltip("Les corps rigides dynamiques (non cinematiques) sont mobiles : ils ne sont pas traites comme des obstacles fixes.")]
+    public bool ignoreDynamicBodies = true;
+
+    public void CopyFrom(RoverRoutePlannerSettings o)
+    {
+        primitiveLength = o.primitiveLength; checkSpacing = o.checkSpacing; outputSpacing = o.outputSpacing;
+        curvatureSamples = o.curvatureSamples; curvatureMargin = o.curvatureMargin; cellSize = o.cellSize;
+        headingBins = o.headingBins; probeCell = o.probeCell; maxTiltDegrees = o.maxTiltDegrees;
+        maxSurfaceSlopeDegrees = o.maxSurfaceSlopeDegrees; maxWheelResidual = o.maxWheelResidual; maxWheelStep = o.maxWheelStep;
+        obstacleMask = o.obstacleMask; bodyClearance = o.bodyClearance; bodyHeight = o.bodyHeight; footprintMargin = o.footprintMargin;
+        goalTolerance = o.goalTolerance; finalStraightPrimitives = o.finalStraightPrimitives; searchMargin = o.searchMargin;
+        maxExpansions = o.maxExpansions; maxSeconds = o.maxSeconds; heuristicWeight = o.heuristicWeight;
+        curvatureCost = o.curvatureCost; curvatureChangeCost = o.curvatureChangeCost; tiltCost = o.tiltCost;
+        solverAngleMargin = o.solverAngleMargin; ignoreStartOverlaps = o.ignoreStartOverlaps; ignoreDynamicBodies = o.ignoreDynamicBodies;
+    }
+
+    /// <summary>
+    /// Lot 6 : profil "Permissif". Elargit les seuils de franchissement tout en restant dans le domaine du solveur
+    /// (l'inclinaison reste plafonnee par NavigationMaxPoseAngle - solverAngleMargin) et dans le domaine de courbure
+    /// de l'actionneur. Les couts (inclinaison, courbure) continuent de privilegier les trajets confortables.
+    /// </summary>
+    public void ApplyPermissive()
+    {
+        curvatureSamples = Mathf.Max(curvatureSamples, 7);
+        curvatureMargin = Mathf.Max(curvatureMargin, .92f);
+        maxTiltDegrees = 40f;                       // effectivement plafonne par le solveur
+        solverAngleMargin = Mathf.Min(solverAngleMargin, 1.5f);
+        maxSurfaceSlopeDegrees = Mathf.Max(maxSurfaceSlopeDegrees, 38f);
+        maxWheelResidual = Mathf.Max(maxWheelResidual, .20f);
+        maxWheelStep = Mathf.Max(maxWheelStep, .17f);
+        bodyClearance = Mathf.Min(bodyClearance, .25f);
+        footprintMargin = Mathf.Min(footprintMargin, .05f);
+        goalTolerance = Mathf.Max(goalTolerance, 1.2f);
+        searchMargin = Mathf.Max(searchMargin, 35f);
+        maxExpansions = Mathf.Max(maxExpansions, 60000);
+        maxSeconds = Mathf.Max(maxSeconds, 45f);
+        heuristicWeight = Mathf.Max(heuristicWeight, 2f);
+        ignoreStartOverlaps = true;
+        ignoreDynamicBodies = true;
+    }
 }
 
 public sealed class RoverRoutePlanner
@@ -80,10 +126,15 @@ public sealed class RoverRoutePlanner
     readonly List<HeapItem> heap = new List<HeapItem>(8192);
     readonly Dictionary<long, float> bestG = new Dictionary<long, float>(16384);
     readonly Dictionary<long, Probe> probes = new Dictionary<long, Probe>(65536);
-    readonly Dictionary<EntityId, bool> obstacleCache = new Dictionary<EntityId, bool>(256);
+    readonly Dictionary<Collider, bool> obstacleCache = new Dictionary<Collider, bool>(256);
     readonly List<Vector3> result = new List<Vector3>(512);
     readonly Collider[] overlap = new Collider[48];
     readonly int[] rejections = new int[6];
+    readonly HashSet<Collider> startOverlaps = new HashSet<Collider>();
+    readonly Dictionary<Collider, int> obstacleHits = new Dictionary<Collider, int>(64);
+    Collider topObstacle;
+    int topObstacleHits;
+    string topObstacleName = "";
     readonly Stopwatch total = new Stopwatch();
     readonly Stopwatch slice = new Stopwatch();
 
@@ -150,7 +201,7 @@ public sealed class RoverRoutePlanner
         halfWidth += solver.WheelRadius + s.footprintMargin;
         halfLength += solver.WheelRadius + s.footprintMargin;
 
-        float tilt = Mathf.Min(s.maxTiltDegrees, Mathf.Max(1f, solver.NavigationMaxPoseAngle - 3f));
+        float tilt = Mathf.Min(s.maxTiltDegrees, Mathf.Max(1f, solver.NavigationMaxPoseAngle - s.solverAngleMargin));
         maxTiltTan = Mathf.Tan(tilt * Mathf.Deg2Rad);
         maxSurfaceSlope = s.maxSurfaceSlopeDegrees;
 
@@ -175,6 +226,14 @@ public sealed class RoverRoutePlanner
         if (gp.slope > maxSurfaceSlope) return Refuse($"Destination sur une pente locale trop forte ({gp.slope:F0} deg).", out refusal);
 
         startCenter = center;
+        if (s.ignoreStartOverlaps)
+        {
+            // Pose de depart : tout collider deja dans le volume du chassis est ignore pour cette recherche.
+            float yaw0 = Mathf.Atan2(forward.x, forward.z);
+            float gy = EvaluatePose(center.x, center.z, yaw0, heightsA, out _, out float g0, out _) ? g0 : center.y - solver.WheelRadius;
+            int hits = OverlapBody(center.x, center.z, yaw0, gy);
+            for (int i = 0; i < hits; i++) if (overlap[i]) startOverlaps.Add(overlap[i]);
+        }
         Vector2 start = new Vector2(center.x, center.z);
         float m = s.searchMargin;
         float xMin = Mathf.Max(Mathf.Min(start.x, goal.x) - m, surfaceBounds.min.x);
@@ -204,6 +263,7 @@ public sealed class RoverRoutePlanner
     {
         nodes.Clear(); heap.Clear(); bestG.Clear(); probes.Clear(); obstacleCache.Clear(); result.Clear();
         Array.Clear(rejections, 0, rejections.Length);
+        startOverlaps.Clear(); obstacleHits.Clear(); topObstacle = null; topObstacleHits = 0; topObstacleName = "";
         Expansions = 0; ProbeCount = 0; ResultLength = 0f; GoalMiss = 0f; Message = "";
         State = Status.Idle;
         total.Reset();
@@ -339,28 +399,43 @@ public sealed class RoverRoutePlanner
         return p;
     }
 
-    bool Blocked(float x, float z, float yaw, float groundY)
+    int OverlapBody(float x, float z, float yaw, float groundY)
     {
         Vector3 center = new Vector3(x, groundY + s.bodyClearance + s.bodyHeight * .5f, z);
         Vector3 half = new Vector3(halfWidth, s.bodyHeight * .5f, halfLength);
         Quaternion rot = Quaternion.Euler(0f, yaw * Mathf.Rad2Deg, 0f);
-        int count = Physics.OverlapBoxNonAlloc(center, half, overlap, rot, s.obstacleMask, QueryTriggerInteraction.Ignore);
+        return Physics.OverlapBoxNonAlloc(center, half, overlap, rot, s.obstacleMask, QueryTriggerInteraction.Ignore);
+    }
+
+    bool Blocked(float x, float z, float yaw, float groundY)
+    {
+        int count = OverlapBody(x, z, yaw, groundY);
         if (count >= overlap.Length) return true; // tampon plein : prudence
-        for (int i = 0; i < count; i++) if (IsObstacle(overlap[i])) return true;
+        for (int i = 0; i < count; i++)
+            if (IsObstacle(overlap[i])) { NoteObstacle(overlap[i]); return true; }
         return false;
+    }
+
+    void NoteObstacle(Collider c)
+    {
+        obstacleHits.TryGetValue(c, out int n);
+        obstacleHits[c] = ++n;
+        if (n > topObstacleHits) { topObstacleHits = n; if (topObstacle != c) { topObstacle = c; topObstacleName = c.name; } }
     }
 
     bool IsObstacle(Collider c)
     {
         if (!c) return false;
-        EntityId id = c.GetEntityId();
-        if (obstacleCache.TryGetValue(id, out bool known)) return known;
+        // Cle = le Collider lui-meme (independant de GetInstanceID / GetEntityId selon la version de Unity).
+        if (obstacleCache.TryGetValue(c, out bool known)) return known;
         bool obstacle = !c.isTrigger && !solver.IsNavigationSurface(c) && !(c is CharacterController) &&
-            !(roverRoot && (c.transform == roverRoot || c.transform.IsChildOf(roverRoot)));
+            !(roverRoot && (c.transform == roverRoot || c.transform.IsChildOf(roverRoot))) &&
+            !startOverlaps.Contains(c) &&
+            !(s.ignoreDynamicBodies && c.attachedRigidbody && !c.attachedRigidbody.isKinematic);
         if (obstacle && ignoreRoots != null)
             foreach (Transform t in ignoreRoots)
                 if (t && (c.transform == t || c.transform.IsChildOf(t))) { obstacle = false; break; }
-        obstacleCache.Add(id, obstacle);
+        obstacleCache.Add(c, obstacle);
         return obstacle;
     }
 
@@ -420,6 +495,7 @@ public sealed class RoverRoutePlanner
             detail = $" Blocages principaux : {ReasonNames[first]} ({100f * rejections[first] / sum:F0} %)";
             if (second >= 0 && rejections[second] > 0) detail += $", {ReasonNames[second]} ({100f * rejections[second] / sum:F0} %)";
             detail += ".";
+            if (topObstacleHits > 0) detail += $" Obstacle le plus rencontre : \"{topObstacleName}\".";
         }
         Message = headline + $" Approche maximale : {closestDistance:F1} m de la destination." + detail;
     }

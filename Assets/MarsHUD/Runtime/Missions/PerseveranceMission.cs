@@ -31,12 +31,20 @@ namespace MarsHUD
         [Tooltip("Racines ignorees par le controle d'obstacles (XR Origin, HUD...).")]
         public Transform[] obstacleIgnoreRoots = new Transform[0];
         public RoverRoutePlannerSettings planner = new RoverRoutePlannerSettings();
+        public enum PlannerProfile { AsConfigured, Permissive }
+        [Tooltip("Lot 6 : Permissive elargit les seuils du planificateur (voir RoverRoutePlannerSettings.ApplyPermissive)\n" +
+                 "sans modifier les valeurs serialisees ci-dessus. AsConfigured = valeurs exactes du lot 3.")]
+        public PlannerProfile plannerProfile = PlannerProfile.Permissive;
+        [Tooltip("Lot 6 : budget par image en profil Permissive (le rover est a l'arret pendant le calcul).")]
+        [Range(.5f, 6f)] public float permissiveBudgetMilliseconds = 4f;
         [Tooltip("Lot 5 : false = le prelevement se lance depuis le HUD (bouton Prelever). true = automatique a l'arrivee (lot 3).")]
         public bool autoSampleOnArrival = false;
         [Header("Test sans casque (menu contextuel)")]
         public Transform editorTestTarget;
 
         readonly RoverRoutePlanner search = new RoverRoutePlanner();
+        readonly RoverRoutePlannerSettings effective = new RoverRoutePlannerSettings();
+        Transform[] ignoreRoots = new Transform[0];
         readonly List<RoverWaypointPath> ownedPaths = new List<RoverWaypointPath>(4);
         readonly List<Vector3> wheelBuffer = new List<Vector3>(6);
         static readonly Vector3[] Empty = new Vector3[0];
@@ -97,6 +105,52 @@ namespace MarsHUD
             if (!sampler && hud) sampler = hud.GetComponent<MarsSoilSampler>();
         }
 
+        /// <summary>Lot 6 : racines ignorees = celles configurees + Ingenuity (engin volant, mobile) + XR Origin.</summary>
+        void RebuildIgnoreRoots()
+        {
+            var list = new List<Transform>(8);
+            if (obstacleIgnoreRoots != null) foreach (var t in obstacleIgnoreRoots) if (t) list.Add(t);
+            foreach (var ing in IngenuityInScenes())
+            {
+                if (ing.body && !list.Contains(ing.body.transform)) list.Add(ing.body.transform);
+                if (!list.Contains(ing.transform)) list.Add(ing.transform);
+            }
+            if (hud && hud.Head)
+            {
+                Transform r = XrOriginOf(hud.Head);       // le XR Origin lui-meme, jamais une racine de scene englobante
+                if (r && !list.Contains(r) && r != follower.transform && !follower.transform.IsChildOf(r)) list.Add(r);
+            }
+            ignoreRoots = list.ToArray();
+        }
+
+        /// <summary>IngenuityMission actifs des scenes ouvertes (une fois par ordre ; sans FindObjectsByType).</summary>
+        static List<IngenuityMission> IngenuityInScenes()
+        {
+            var list = new List<IngenuityMission>(2);
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                Scene sc = SceneManager.GetSceneAt(i);
+                if (!sc.isLoaded) continue;
+                foreach (var root in sc.GetRootGameObjects()) list.AddRange(root.GetComponentsInChildren<IngenuityMission>(false));
+            }
+            return list;
+        }
+
+        static Transform XrOriginOf(Transform t)
+        {
+            for (; t; t = t.parent)
+                foreach (var c in t.GetComponents<Component>())
+                    if (c && (c.GetType().Name == "XROrigin" || c.GetType().Name == "XRRig")) return t;
+            return null;
+        }
+
+        RoverRoutePlannerSettings Effective()
+        {
+            effective.CopyFrom(planner);
+            if (plannerProfile == PlannerProfile.Permissive) effective.ApplyPermissive();
+            return effective;
+        }
+
         public bool TryGetPose(out Vector3 position, out Vector3 forward)
         {
             position = default; forward = Vector3.forward;
@@ -120,7 +174,9 @@ namespace MarsHUD
             float distance = RoverWaypointPath.HorizontalDistance(center, worldPoint);
             if (distance > maxDestinationDistance)
                 return Reject($"Destination à {distance:F0} m : au-delà de la portée d'un ordre ({maxDestinationDistance:F0} m).", out refusalReason);
-            if (distance < planner.goalTolerance)
+            var settings = Effective();
+            RebuildIgnoreRoots();     // une fois par ordre (Ingenuity et la tete peuvent apparaitre apres Start)
+            if (distance < settings.goalTolerance)
                 return Reject("Destination trop proche de la position actuelle du rover.", out refusalReason);
 
             if (state == MarsOrderState.Planning) search.Cancel();       // un nouvel ordre remplace le calcul en cours
@@ -139,7 +195,7 @@ namespace MarsHUD
             for (int i = 0; i < solver.WheelCount; i++) if (solver.WheelCenter(i)) wheelBuffer.Add(solver.WheelCenter(i).position);
             if (!search.Begin(solver, follower.transform, center, follower.Actuator.Heading * Vector3.forward,
                     follower.Actuator.MinCurvature, follower.Actuator.MaxCurvature, follower.Actuator.Curvature,
-                    wheelBuffer, worldPoint, planner, obstacleIgnoreRoots, out string why))
+                    wheelBuffer, worldPoint, settings, ignoreRoots, out string why))
             {
                 RestoreAfterRefusal();
                 return Reject(why, out refusalReason);
@@ -235,7 +291,7 @@ namespace MarsHUD
                 case MarsOrderState.Unavailable:
                     state = MarsOrderState.Idle; break;
                 case MarsOrderState.Planning:
-                    if (search.StepSearch(planningBudgetMilliseconds))
+                    if (search.StepSearch(plannerProfile == PlannerProfile.Permissive ? Mathf.Max(planningBudgetMilliseconds, permissiveBudgetMilliseconds) : planningBudgetMilliseconds))
                     {
                         if (search.State == RoverRoutePlanner.Status.Succeeded) Commit();
                         else { RestoreAfterRefusal(); Reject(search.Message, out _); }

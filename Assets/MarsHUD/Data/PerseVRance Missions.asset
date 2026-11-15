@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c97a75f01d7a4210a07730118e7881a1, type: 3}
+  m_Name: PerseVRance Missions
+  m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsMissionCatalog
+  missions:
+  - id: jezero
+    title: "Jezero \u2014 Sortie extrav\xE9hiculaire"
+    site: "Crat\xE8re Jezero, bordure ouest d'Isidis Planitia"
+    latitude: 18.38
+    longitudeEast: 77.58
+    description: "Vous sortez aux c\xF4t\xE9s de Perseverance dans l'ancien lac du crat\xE8re Jezero. Ingenuity cartographie le terrain et les a\xE9rosols ; Perseverance se d\xE9place et pr\xE9l\xE8ve le sol sur vos ordres depuis le HUD."
+    objectives: "\u2022 Suivre le fil rouge jusqu'\xE0 l'arriv\xE9e\n\u2022 Faire explorer la zone par Ingenuity\n\u2022 Envoyer Perseverance et analyser le sol"
+    duration: "20 \xE0 30 min"
+    difficulty: 0
+    sceneName: JezeroMission
+    available: 1
+    color: {r: 1, g: 0.48, b: 0.22, a: 1}
+  - id: gale
+    title: "Gale \u2014 Aeolis Mons"
+    site: "Crat\xE8re Gale (site de Curiosity)"
+    latitude: -5.4
+    longitudeEast: 137.8
+    description: "Mission \xE0 venir : ascension des strates s\xE9dimentaires du mont Sharp."
+    objectives: "\xC0 d\xE9finir"
+    duration: "\u2014"
+    difficulty: 1
+    sceneName: 
+    available: 0
+    color: {r: 0.55, g: 0.75, b: 1, a: 1}
+  - id: olympus
+    title: Olympus Mons
+    site: "Tharsis, plus haut volcan du syst\xE8me solaire"
+    latitude: 18.65
+    longitudeEast: 226.2
+    description: "Mission \xE0 venir : reconnaissance des falaises de la base du volcan."
+    objectives: "\xC0 d\xE9finir"
+    duration: "\u2014"
+    difficulty: 2
+    sceneName: 
+    available: 0
+    color: {r: 0.55, g: 0.75, b: 1, a: 1}
+  - id: valles
+    title: Valles Marineris
+    site: "Canyon \xE9quatorial, Coprates Chasma"
+    latitude: -13.9
+    longitudeEast: -59.2
+    description: "Mission \xE0 venir : descente dans le plus grand canyon de Mars."
+    objectives: "\xC0 d\xE9finir"
+    duration: "\u2014"
+    difficulty: 2
+    sceneName: 
+    available: 0
+    color: {r: 0.55, g: 0.75, b: 1, a: 1}
