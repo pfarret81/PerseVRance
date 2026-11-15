@@ -16,11 +16,11 @@ MonoBehaviour:
   extentSize: {x: 3885.6758, y: 4096}
   layers:
   - theme: 0
-    displayName: Relief - hillshade
+    displayName: Map - hillshade
     colorTexture: {fileID: 2800000, guid: d8ee4cf96df32424b8fe4367c57cfc62, type: 3}
     validMask: {fileID: 0}
     textureNorthAtTop: 1
-    units: Ombrage, pas une altitude
+    units: None
     legendLow: 
     legendHigh: 
     timeOrDepth: 
@@ -29,34 +29,34 @@ MonoBehaviour:
     highColor: {r: 0.87, g: 0.64, b: 0.29, a: 1}
     legendMode: 2
     approximateRegistration: 1
-    interpretation: Image recadree manuellement, supposee couvrir l'emprise complete. Aucune altitude deduite du gris.
+    interpretation: 
   - theme: 1
-    displayName: Poussiere - MGS TES Global Dust
+    displayName: Dust - MGS TES Global Dust
     colorTexture: {fileID: 2800000, guid: 1bd8f0dca038c5d45b9af9edb63913c8, type: 3}
     validMask: {fileID: 0}
     textureNorthAtTop: 1
-    units: Echelle fournie 0-1 ; unite non documentee
-    legendLow: '0 : bleu'
-    legendHigh: '1 : rouge'
+    units: None
+    legendLow: 'Low : blue'
+    legendHigh: 'High : red'
     timeOrDepth: 
     provenance: NASA Mars Trek / TES_Dust
     lowColor: {r: 0, g: 0, b: 1, a: 1}
     highColor: {r: 1, g: 0, b: 0, a: 1}
     legendMode: 1
     approximateRegistration: 1
-    interpretation: Bornes rapportees par l'utilisateur. Pas de lecture numerique par pixel, date et palette intermediaire non documentees.
+    interpretation: 
   - theme: 2
-    displayName: "Composition du sol - pr\xE9l\xE8vements"
+    displayName: Soil composition - sampling
     colorTexture: {fileID: 0}
     validMask: {fileID: 0}
     textureNorthAtTop: 1
     units: "Indice d'\xE9cart local 0-1 (simul\xE9)"
-    legendLow: '0 : proche du contexte'
-    legendHigh: "1 : \xE9cart marqu\xE9"
+    legendLow: 'Low : close to the context'
+    legendHigh: 'High : marked difference'
     timeOrDepth: 
-    provenance: "SIMULATION - pr\xE9l\xE8vements Perseverance"
+    provenance: SIMULATION - Perseverance sample
     lowColor: {r: 0.16, g: 0.25, b: 0.35, a: 1}
     highColor: {r: 0.87, g: 0.64, b: 0.29, a: 1}
     legendMode: 3
     approximateRegistration: 0
-    interpretation: "R\xE9v\xE9l\xE9 uniquement par les pr\xE9l\xE8vements. Valeurs simul\xE9es, non mesur\xE9es."
+    interpretation: 

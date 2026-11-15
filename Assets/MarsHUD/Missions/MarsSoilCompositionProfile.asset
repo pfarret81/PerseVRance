@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80c19d06d8aa4b34b14db9cc01d6f988, type: 3}
   m_Name: MarsSoilCompositionProfile
   m_EditorClassIdentifier: Assembly-CSharp::MarsHUD.MarsSoilCompositionProfile
-  provenance: "SIMULATION - \xE9chantillon-type : sol basaltique moyen martien (APXS, O'Connell-Cooper et al. 2017)"
+  provenance: 'SIMULATION - representative sample: average Martian basaltic soil (APXS, O''Connell-Cooper et al. 2017)'
   components:
   - label: SiO2
     referencePercent: 45.44
