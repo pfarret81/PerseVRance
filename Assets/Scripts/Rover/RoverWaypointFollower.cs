@@ -64,6 +64,7 @@ public class RoverWaypointFollower : MonoBehaviour
         { SetFault("Premier point trop loin du milieu des roues centrales (plus de 0.50 m)."); return false; }
         Progress=0f; CurrentSpeed=0f; PeakSpeed=0f; CurrentCrossTrack=0f; PeakCrossTrack=0f;
         saturationTime=0f; FaultReason=""; ready=true;
+        HoldPathReadLock(path);
         if (!UpdateTracking()) return false;
         State=run ? FollowState.Following : FollowState.Paused;
         return true;
@@ -178,4 +179,79 @@ public class RoverWaypointFollower : MonoBehaviour
             $"ecart lateral pic={PeakCrossTrack:F3} m, courbure={actuator.Curvature:F4} 1/m, " +
             $"erreur appuis pic={actuator.PeakAcceptedError*1000f:F3} mm, passages pic={actuator.PeakIterations}, faute={FaultReason}.",this);
     }
+
+    [Header("Remplacement runtime - garde-fou du prototype")]
+    [SerializeField, Min(.001f)] private float replacementStartTolerance=.10f;
+    private RoverWaypointPath lockedRuntimePath;
+    public RoverWaypointPath CurrentPath => path;
+    public bool IsReadyForRuntimePath => ready && State!=FollowState.Fault;
+
+    private void HoldPathReadLock(RoverWaypointPath candidate)
+    {
+        if(lockedRuntimePath==candidate) return;
+        if(lockedRuntimePath) lockedRuntimePath.ReleaseRuntimeReadLock();
+        lockedRuntimePath=candidate;
+        if(lockedRuntimePath) lockedRuntimePath.AcquireRuntimeReadLock();
+    }
+    private void OnDestroy() { HoldPathReadLock(null); }
+
+    public bool TryValidateReplacementPath(RoverWaypointPath candidate, out string refusal)
+    {
+        return ValidateRuntimeCandidate(candidate,out refusal,out _,out _);
+    }
+    private bool ValidateRuntimeCandidate(RoverWaypointPath candidate,out string refusal,out float initialProgress,out float initialError)
+    {
+        refusal=""; initialProgress=0f; initialError=0f;
+        if(!Application.isPlaying) { refusal="Operation reservee au mode Play."; return false; }
+        if(!isActiveAndEnabled || !ready) { refusal="Follower non initialise ou inactif. Aucun reset automatique."; return false; }
+        if(State==FollowState.Fault) { refusal="Follower en defaut : recuperer le defaut avant tout nouvel ordre."; return false; }
+        if(!ConfigurationValid()) { refusal="Configuration actuelle invalide."; return false; }
+        if(!candidate || !candidate.isActiveAndEnabled || candidate==path || candidate.IsInUse)
+        { refusal="Choisir un candidat actif distinct, non utilise par un follower."; return false; }
+        if(candidate.transform==transform || candidate.transform.IsChildOf(transform))
+        { refusal="Le candidat doit etre independant du rover."; return false; }
+        for(int i=0;i<candidate.PointCount;i++)
+        {
+            Transform point=candidate.Point(i);
+            if(point && (point==transform || point.IsChildOf(transform)))
+            { refusal="Un point candidat est attache au rover."; return false; }
+        }
+        if(!candidate.BuildCache(out refusal)) return false;
+        if(!Finite(replacementStartTolerance) || replacementStartTolerance<=0f)
+        { refusal="Tolerance de depart invalide."; return false; }
+        Vector3 center=actuator.CenterPosition;
+        if(RoverWaypointPath.HorizontalDistance(center,candidate.Sample(0f))>replacementStartTolerance)
+        { refusal="Le premier point doit correspondre au milieu courant des roues centrales."; return false; }
+        float ahead=Mathf.Min(candidate.Length,Mathf.Max(2f*lookAhead,1f));
+        if(!candidate.ProjectWindow(center,0f,ahead,out initialProgress,out initialError) || initialError>maxCrossTrack)
+        { refusal="Projection initiale sur le candidat refusee."; return false; }
+        Vector3 offset=candidate.Sample(Mathf.Min(candidate.Length,initialProgress+lookAhead))-center;
+        offset.y=0f;
+        Vector3 local=Quaternion.Inverse(actuator.Heading)*offset;
+        if(local.z<-.05f || offset.sqrMagnitude<.000001f)
+        { refusal="Point de visee initial derriere le rover ou trop proche ; pas de marche arriere automatique."; return false; }
+        float requested=2f*local.x/offset.sqrMagnitude;
+        if(requested<actuator.MinCurvature-.0001f || requested>actuator.MaxCurvature+.0001f)
+        { refusal="Courbure de visee initiale hors du domaine de direction."; return false; }
+        return true;
+    }
+
+    public bool TryAdoptPathFromCurrentPose(RoverWaypointPath candidate,bool resumeAfterAcceptance,out string refusal)
+    {
+        if(!ValidateRuntimeCandidate(candidate,out refusal,out float projected,out float error)) return false;
+        // Commit sans appel a Initialize, ResetToReference, TryAdvance ou au solveur.
+        HoldPathReadLock(candidate);
+        path=candidate;
+        Progress=projected;
+        CurrentSpeed=0f;
+        PeakSpeed=0f;
+        CurrentCrossTrack=error;
+        PeakCrossTrack=error;
+        saturationTime=0f;
+        FaultReason="";
+        run=resumeAfterAcceptance;
+        State=run ? FollowState.Following : FollowState.Paused;
+        return true;
+    }
+
 }
